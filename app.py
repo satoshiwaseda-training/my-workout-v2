@@ -84,9 +84,9 @@ st.title("💪 GEMINI MUSCLE MATE")
 
 # 1. トレーニング生成セクション（最優先）
 with st.container():
-    # 目的と部位の連動ロジック
     goal = st.selectbox("トレーニング目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     
+    # 目的と部位の連動
     default_parts = ["胸"]
     if "ベンチ" in goal: default_parts = ["胸", "腕", "肩"]
     elif "スクワット" in goal: default_parts = ["足"]
@@ -141,9 +141,15 @@ if st.session_state.menu_data:
         st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt")
         st.balloons()
 
-# 3. メンテナンスエリア（画面最下部：普段は隠しておくもの）
+# 3. メンテナンスエリア（画面最下部：履歴を優先配置）
 st.markdown("<br><br><br><br><br>---", unsafe_allow_html=True)
 st.markdown("### ⚙️ SETTINGS & ARCHIVE")
+
+with st.expander("📅 トレーニング履歴"):
+    if not st.session_state.calendar_events:
+        st.write("まだ記録はありません。最初のミッションを完了しましょう！")
+    for ev in reversed(st.session_state.calendar_events):
+        st.write(f"✅ {ev}")
 
 with st.expander("👤 1RMデータ設定"):
     c1, c2, c3 = st.columns(3)
@@ -162,7 +168,3 @@ with st.expander("🧠 AI学習・こだわり設定"):
             st.success(f"✅ {uploaded_file.name} を読み込みました。")
         except: st.error("ファイルの読み込みに失敗しました。")
     st.session_state.fav_menu = st.text_area("テキストでのこだわり入力", value=st.session_state.fav_menu, placeholder="例：ナローベンチをメニューの最後に入れたい、など")
-
-with st.expander("📅 トレーニング履歴"):
-    for ev in reversed(st.session_state.calendar_events):
-        st.write(f"✅ {ev}")
