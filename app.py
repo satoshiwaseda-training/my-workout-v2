@@ -5,7 +5,7 @@ import re
 # スマホ向け設定
 st.set_page_config(page_title="AIトレ", page_icon="🏋️‍♂️")
 
-# --- デザイン設定（スマホ特化） ---
+# --- デザイン設定 ---
 st.markdown("""
     <style>
     .stApp { background-color: #121212; color: #FFFFFF; }
@@ -58,12 +58,9 @@ st.markdown("""
     }
     .rest-hint {
         font-size: 0.8rem;
-        color: #00FF7F; /* 休憩時間は緑色で表示 */
+        color: #00FF7F;
         font-weight: bold;
         margin-bottom: 10px;
-    }
-    .stNumberInput {
-        margin-bottom: 0px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -104,66 +101,21 @@ if st.button("メニューを作成"):
         model = genai.GenerativeModel(model_name)
         
         history = "\n".join(st.session_state.feedback_history[-3:])
-        # AIに休憩時間(REST)も計算させるよう指示を追加
+        
+        # 指示に「休憩時間を考慮したメニュー構成」を追加
         prompt = f"""
-        1RM: SQ{sq}, BP{bp}, DL{dl} / 目的:{goal} / 部位:{part} / 設備:{equipment}
-        過去実績:{history}
+        あなたはプロのパーソナルトレーナーです。
+        【ユーザー情報】1RM: SQ{sq}kg, BP{bp}kg, DL{dl}kg / 目的:{goal} / 部位:{part} / 設備:{equipment}
+        【過去実績】:{history}
 
-        以下の形式を厳守して日本語でメニューを返してください。
-        種目の特性に合わせて最適なセット間休憩(REST)も秒または分で計算してください。
+        【メニュー構成の指示】
+        1. BIG3（スクワット、ベンチプレス、デッドリフト）などのコンパウンド種目は、セット間休憩を「3分」確保することを前提に、高い強度でメニューを組んでください。
+        2. 全体のトレーニング時間が1時間を超えないよう、休憩時間も含めて種目数やセット数を適切に調整してください。
+        3. 休憩時間は、種目の負荷（コンパウンド種目、アイソレーション種目など）に応じてAIが最適に判断してください。
+
+        以下の形式を厳守して返してください（余計な説明不要）。
         『種目名』 【重量kg】 (セット数セット) 回数回 [休憩REST]
         """
         
         with st.spinner("AI作成中..."):
-            response = model.generate_content(prompt)
-            st.session_state.last_menu = response.text
-            # 正規表現で休憩時間も抽出するように変更
-            items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)\s*\[(.*?)\]', response.text)
-            st.session_state.menu_data = [
-                {"name": n, "target_w": w, "sets": int(re.search(r'\d+', s).group()), "target_r": r, "rest": rs} 
-                for n, w, s, r, rs in items
-            ]
-    except Exception as e:
-        st.error(f"エラー: {e}")
-
-st.divider()
-
-# --- 3. ライブ記録エリア ---
-if st.session_state.last_menu:
-    st.markdown("### 📋 AI提案")
-    st.markdown(f'<div class="proposal-box">{st.session_state.last_menu}</div>', unsafe_allow_html=True)
-    
-    st.markdown("### ✍️ 実績記録")
-    all_logs = []
-    
-    for idx, item in enumerate(st.session_state.menu_data):
-        with st.container():
-            st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-            st.markdown(f"**{item['name']}**", unsafe_allow_html=True)
-            st.markdown(f"<span class='target-hint'>目標: {item['target_w']} × {item['target_r']}</span>", unsafe_allow_html=True)
-            # 休憩時間を表示
-            st.markdown(f"<span class='rest-hint'>⏱ セット間休憩: {item['rest']}</span>", unsafe_allow_html=True)
-            
-            item_logs = []
-            for s in range(item['sets']):
-                st.markdown(f'<div class="set-row">', unsafe_allow_html=True)
-                c_lab, c_w, c_r = st.columns([0.8, 2.1, 2.1])
-                with c_lab:
-                    st.markdown(f"<p class='set-label'>S{s+1}</p>", unsafe_allow_html=True)
-                with c_w:
-                    st.markdown("<span class='input-label'>重量(kg)</span>", unsafe_allow_html=True)
-                    w = st.number_input("kg", 0.0, 500.0, step=2.5, key=f"w_{idx}_{s}", label_visibility="collapsed")
-                with c_r:
-                    st.markdown("<span class='input-label'>回数</span>", unsafe_allow_html=True)
-                    r = st.number_input("回", 0, 100, step=1, key=f"r_{idx}_{s}", label_visibility="collapsed")
-                
-                item_logs.append(f"{w}kg x {r}回")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            all_logs.append(f"{item['name']}: {'/'.join(item_logs)}")
-            st.markdown('</div>', unsafe_allow_html=True)
-    
-    feeling = st.select_slider("強度感", options=["限界", "重い", "ちょうど", "軽い"])
-    if st.button("トレーニング完了"):
-        st.session_state.feedback_history.append(f"感想:{feeling} / 記録:" + " | ".join(all_logs))
-        st.success("ナイスバルク！保存完了。")
+            response = model.
