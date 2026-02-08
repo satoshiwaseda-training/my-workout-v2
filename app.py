@@ -25,7 +25,7 @@ st.title("🏋️‍♂️ セット別・パーソナル記録モード")
 
 # --- 1. 設定 & BIG3 ---
 with st.sidebar:
-    api_key = st.text_input("Gemini API Key", type="password")
+    api_key = st.secrets["GOOGLE_API_KEY"]
     st.divider()
     sq = st.number_input("SQUAT (kg)", 0, 500, 60)
     bp = st.number_input("BENCH (kg)", 0, 500, 40)
@@ -108,4 +108,5 @@ if st.session_state.last_menu:
         if st.button("トレーニング完了・AIに送信"):
             feedback = " | ".join(all_logs)
             st.session_state.feedback_history.append(f"【実施実績】: {feedback}")
+
             st.success("記録完了！この内容は次回の強度調整に反映されます。")
