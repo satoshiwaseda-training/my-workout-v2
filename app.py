@@ -55,7 +55,7 @@ def parse_menu(text):
 
 # API & セッション初期化
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-for key, val in {"total_points": 0, "history_log": {}, "calendar_events": [], "menu_data": [], "last_menu_text": "", "fav_menu": ""}.items():
+for key, val in {"total_points": 0, "history_log": {}, "calendar_events": [], "menu_data": [], "last_menu_text": "", "fav_menu": "", "bp_max": 115.0, "sq_max": 160.0, "dl_max": 140.0}.items():
     if key not in st.session_state: st.session_state[key] = val
 
 def get_fairy_info(pts):
@@ -73,30 +73,24 @@ with st.sidebar:
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# 1. トレーニング設定（最優先）
+# 1. トレーニング生成（最上部：即開始用）
 with st.container():
-    c1, c2, c3 = st.columns(3)
-    bp_max = c1.number_input("Bench Press 1RM", value=115.0)
-    sq_max = c2.number_input("Squat 1RM", value=160.0)
-    dl_max = c3.number_input("Deadlift 1RM", value=140.0)
-    
     goal = st.selectbox("トレーニング目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=["胸"])
 
     if st.button("AIメニュー生成 (INITIATE)"):
-        # 下に配置した学習セクションの内容をここで取得
         file_data = st.session_state.get('file_content_cache', "")
         try:
             model = genai.GenerativeModel(get_best_model())
-            prompt = f"コーチとして以下の設定でメニュー作成。\n【こだわり】{st.session_state.fav_menu}\n【学習データ】{file_data}\n1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max}\n目的: {goal}, 部位: {parts}\n形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
+            prompt = f"コーチとしてメニュー作成。\n【こだわり】{st.session_state.fav_menu}\n【学習データ】{file_data}\n1RM: SQ{st.session_state.sq_max}, BP{st.session_state.bp_max}, DL{st.session_state.dl_max}\n目的: {goal}, 部位: {parts}\n形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
             response = model.generate_content(prompt)
             st.session_state.last_menu_text = response.text
         except:
-            st.warning("⚠️ AI制限中につきバックアップメニューを表示します。")
+            st.warning("⚠️ AI休憩中：バックアップ表示")
             st.session_state.last_menu_text = "『ベンチプレス』 【90kg】 (3セット) 8回 [3分]\n『ナローベンチ』 【80kg】 (3セット) 10回 [2分]"
         st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
-# 2. 記録エリア
+# 2. メニュー表示 & 記録
 if st.session_state.menu_data:
     st.info(st.session_state.last_menu_text)
     current_logs = []
@@ -124,14 +118,17 @@ if st.session_state.menu_data:
         st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt")
         st.balloons()
 
-# 3. 学習機能 ＆ 履歴（普段使わないものは下へ）
-st.markdown("---")
-with st.expander("📅 過去のトレーニングログ"):
-    for ev in reversed(st.session_state.calendar_events):
-        st.write(f"✅ {ev}")
+# 3. メンテナンスエリア（画面最下部へ）
+st.markdown("<br><br><br>---", unsafe_allow_html=True)
+st.markdown("### ⚙️ SETTINGS & ARCHIVE")
 
-with st.expander("🧠 AI学習・こだわり設定（ファイル/テキスト）"):
-    st.write("特定のメニュー構成や、過去の成功パターンをAIに反映させたい場合に使用します。")
+with st.expander("👤 1RMデータ設定"):
+    c1, c2, c3 = st.columns(3)
+    st.session_state.bp_max = c1.number_input("Bench Press 1RM", value=st.session_state.bp_max)
+    st.session_state.sq_max = c2.number_input("Squat 1RM", value=st.session_state.sq_max)
+    st.session_state.dl_max = c3.number_input("Deadlift 1RM", value=st.session_state.dl_max)
+
+with st.expander("🧠 AI学習・こだわり設定"):
     uploaded_file = st.file_uploader("Excel/PDF/CSVをアップロード", type=["xlsx", "pdf", "csv", "txt"])
     if uploaded_file:
         try:
@@ -139,6 +136,10 @@ with st.expander("🧠 AI学習・こだわり設定（ファイル/テキスト
             elif uploaded_file.name.endswith('.csv'): content = pd.read_csv(uploaded_file).to_string()
             else: content = uploaded_file.read().decode('utf-8')
             st.session_state['file_content_cache'] = content
-            st.success(f"✅ {uploaded_file.name} を読み込みました。")
-        except: st.error("ファイルの読み込みに失敗しました。")
-    st.session_state.fav_menu = st.text_area("テキストでのこだわり入力", value=st.session_state.fav_menu, placeholder="例：ベンチプレスの日はナローベンチを最後に入れたい、など")
+            st.success(f"✅ {uploaded_file.name} 読み込み完了")
+        except: st.error("エラー")
+    st.session_state.fav_menu = st.text_area("こだわり入力", value=st.session_state.fav_menu)
+
+with st.expander("📅 トレーニング履歴"):
+    for ev in reversed(st.session_state.calendar_events):
+        st.write(f"✅ {ev}")
