@@ -8,35 +8,44 @@ st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wi
 
 st.markdown("""
     <style>
-    /* メイン背景：クリーンな白ベースにネオンのアクセント */
+    /* メイン背景：クリーンな白ベース */
     .stApp {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         color: #1d1d1f;
     }
     
-    /* サイドバー：ダークで引き締める */
+    /* サイドバー：視認性爆上げ設定 */
     [data-testid="stSidebar"] {
-        background-color: #1c1c1e !important;
-        color: white;
+        background-color: #0a0a0b !important;
+        border-right: 2px solid #007aff;
+    }
+    
+    /* サイドバー内の文字をハッキリさせる */
+    [data-testid="stSidebar"] .stMarkdown p, 
+    [data-testid="stSidebar"] .stMarkdown h1, 
+    [data-testid="stSidebar"] .stMarkdown h3 {
+        color: #ffffff !important;
+        font-weight: bold !important;
+        text-shadow: 0 0 10px rgba(0,122,255,0.5);
     }
 
-    /* コンテナ（カード風） */
-    .css-1r6slb0, .stVerticalBlock > div {
-        background-color: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
-    }
-
-    /* 筋肉の妖精ボックス */
+    /* 筋肉の妖精ボックス（サイバーパンク風） */
     .fairy-card {
-        background: #2c2c2e;
-        border-radius: 20px;
-        padding: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        padding: 15px;
         text-align: center;
-        color: white;
-        border: 2px solid #ff3b30;
+        border: 1px solid #007aff;
+        margin-bottom: 20px;
+        box-shadow: inset 0 0 20px rgba(0,122,255,0.2);
+    }
+
+    /* システムスキャン風テキスト */
+    .system-text {
+        font-family: 'Courier New', Courier, monospace;
+        color: #00ff41 !important; /* マトリックス・グリーン */
+        font-size: 0.8rem !important;
+        text-align: left;
     }
 
     /* 記録カード */
@@ -46,12 +55,10 @@ st.markdown("""
         border-radius: 12px;
         border-left: 5px solid #007aff;
         margin-bottom: 15px;
-        border-top: 1px solid #eee;
-        border-right: 1px solid #eee;
-        border-bottom: 1px solid #eee;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
 
-    /* ボタン：iOS風の洗練されたデザイン */
+    /* ボタン */
     .stButton > button {
         width: 100%;
         height: 55px;
@@ -61,30 +68,17 @@ st.markdown("""
         font-size: 1.1rem !important;
         font-weight: bold !important;
         border: none !important;
-        transition: 0.3s;
     }
     
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,122,255,0.3);
-    }
-
-    /* 文字色修正（視認性向上） */
-    h1, h2, h3, p, span, label {
-        color: #1d1d1f !important;
-    }
-    .fairy-card h1, .fairy-card h3, .fairy-card p {
-        color: white !important;
-    }
+    /* 文字色修正 */
+    h1, h2, h3, p, span, label { color: #1d1d1f !important; }
     
-    /* RPMバッジ */
     .rpm-badge {
-        background-color: #ff9500;
+        background-color: #ff3b30;
         color: white !important;
         padding: 4px 12px;
         border-radius: 20px;
         font-size: 0.8rem;
-        font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -95,40 +89,46 @@ def calculate_1rm(w, r):
     if r == 1: return w
     return round(w * (1 + r / 30), 1)
 
-# APIキー設定
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# セッション初期化
 if "total_points" not in st.session_state: st.session_state.total_points = 0
 if "history_log" not in st.session_state: st.session_state.history_log = {}
 if "calendar_events" not in st.session_state: st.session_state.calendar_events = []
 if "menu_data" not in st.session_state: st.session_state.menu_data = []
 if "last_menu_text" not in st.session_state: st.session_state.last_menu_text = ""
 
-# --- 3. 筋肉の妖精（育成システム） ---
+# --- 3. 筋肉の妖精（サイバーUI） ---
 def get_fairy_info(pts):
-    if pts < 200:
-        return "たまご", "🥚", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/3o7TKMGpxxcaatNf0s/giphy.gif"
-    if pts < 1000:
-        return "ひよこマッチョ", "🐣", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/l41lI4bAdzSBDM3L2/giphy.gif"
-    return "筋肉の神", "🔱", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/3o7TKVUn7iM8FMEU24/giphy.gif"
+    if pts < 300: return "PROTO-TYPE", "🥚", "SYSTEM SCANNING..."
+    if pts < 1500: return "MUSCLE-V1", "🐣", "GROWTH STAGE: ACTIVE"
+    return "GOD-MODE", "🔱", "ULTIMATE FORM DETECTED"
 
-f_name, f_emoji, f_gif = get_fairy_info(st.session_state.total_points)
+f_name, f_emoji, f_status = get_fairy_info(st.session_state.total_points)
 
 with st.sidebar:
+    st.markdown(f"### 🤖 SYSTEM STATUS")
     st.markdown(f'<div class="fairy-card">', unsafe_allow_html=True)
-    st.image(f_gif, caption=f"筋肉の妖精: {f_name}")
-    st.markdown(f"### {f_emoji} RANK: {f_name}")
-    st.progress(min(1.0, st.session_state.total_points / 2000))
-    st.write(f"Total Exp: {st.session_state.total_points} pt")
+    # 文字が消えていた部分を「サイバーテキスト」に変更
+    st.markdown(f"<h1 style='font-size: 80px;'>{f_emoji}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p class='system-text' style='color: #00ff41 !important;'>[ANALYZING...]<br>> {f_name}<br>> {f_status}</p>", unsafe_allow_html=True)
+    
+    st.markdown(f"**LEVEL PROGRESS**")
+    st.progress(min(1.0, st.session_state.total_points / 3000))
+    st.markdown(f"<p style='text-align:right; font-size:0.8rem;'>{st.session_state.total_points} EXP</p>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("### 📊 RECORDS")
+    st.write(f"SQ: {st.session_state.history_log.get('スクワット', 0)} kg")
+    st.write(f"BP: {st.session_state.history_log.get('ベンチプレス', 0)} kg")
+    st.write(f"DL: {st.session_state.history_log.get('デッドリフト', 0)} kg")
 
 # --- 4. メインUI ---
 st.title("💪 GEMINI MUSCLE MATE")
 
 # 1RM設定
-with st.expander("👤 自分の限界(1RM)を編集"):
+with st.expander("👤 1RMデータ編集"):
     c1, c2, c3 = st.columns(3)
     bp_max = c1.number_input("Bench Press", value=115.0)
     sq_max = c2.number_input("Squat", value=160.0)
@@ -136,18 +136,17 @@ with st.expander("👤 自分の限界(1RM)を編集"):
 
 # メニュー生成
 with st.container():
-    st.subheader("🎯 今日のミッション")
-    goal = st.selectbox("トレーニングの目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
+    st.subheader("🎯 MISSION SELECT")
+    goal = st.selectbox("GOAL", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     
-    # 自動部位選択
     d_parts = ["胸"]
     if "ベンチ" in goal: d_parts = ["胸", "腕", "肩"]
     elif "スクワット" in goal: d_parts = ["足"]
     elif "デッド" in goal: d_parts = ["背中", "足"]
     
-    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
+    parts = st.multiselect("TARGET AREA", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
 
-    if st.button("AIプラン生成"):
+    if st.button("AIプラン生成 (INITIATE)"):
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"コーチとしてメニュー作成。1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max} / 目的:{goal} / 部位:{parts}。形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
         response = model.generate_content(prompt)
@@ -164,14 +163,14 @@ with st.container():
 
 # --- 5. 記録エリア ---
 if st.session_state.menu_data:
-    st.markdown(f"### 📋 AI提案メニュー")
+    st.markdown(f"### 📋 MISSION BRIEFING")
     st.info(st.session_state.last_menu_text)
     
     current_logs = []
     for idx, item in enumerate(st.session_state.menu_data):
         st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-        pb = st.session_state.history_log.get(item['name'], "記録なし")
-        st.markdown(f"**{item['name']}** <span class='rpm-badge'>最高1RM: {pb}kg</span>", unsafe_allow_html=True)
+        pb = st.session_state.history_log.get(item['name'], "NEW")
+        st.markdown(f"**{item['name']}** <span class='rpm-badge'>PB: {pb}kg</span>", unsafe_allow_html=True)
         
         sets_results = []
         for s in range(item['sets']):
@@ -179,29 +178,26 @@ if st.session_state.menu_data:
             w_input = col1.number_input(f"kg", 0.0, 500.0, item['w_def'], key=f"w_{idx}_{s}")
             r_input = col2.number_input(f"回", 0, 100, item['r_def'], key=f"r_{idx}_{s}")
             current_rpm = calculate_1rm(w_input, r_input)
-            col3.write(f"予測1RM: {current_rpm}kg")
+            col3.write(f"1RM: {current_rpm}kg")
             sets_results.append({"w": w_input, "r": r_input, "rpm": current_rpm})
         
         current_logs.append({"name": item['name'], "sets": sets_results, "is_compound": item['is_compound']})
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("トレーニング完了！"):
+    if st.button("MISSION COMPLETE (UPLOAD)"):
         pts = 0
         for log in current_logs:
-            # 最高RPM更新チェック
             m_rpm = max([s['rpm'] for s in log['sets']])
             if m_rpm > st.session_state.history_log.get(log['name'], 0):
                 st.session_state.history_log[log['name']] = m_rpm
-            # ポイント計算
             vol = sum([s['w'] * s['r'] for s in log['sets']])
             pts += int((vol * (2.0 if log['is_compound'] else 1.0)) / 100)
         
         st.session_state.total_points += pts
-        st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt 獲得")
+        st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt")
         st.balloons()
-        st.success(f"お疲れ様でした！ {pts}ポイント獲得し、妖精が成長しました！")
+        st.success(f"DATA UPLOADED: +{pts} EXP")
 
-# カレンダー履歴
-with st.expander("📅 過去のトレーニング履歴"):
+with st.expander("📅 LOG HISTORY"):
     for ev in reversed(st.session_state.calendar_events):
         st.write(f"✅ {ev}")
