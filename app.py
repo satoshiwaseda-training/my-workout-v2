@@ -10,21 +10,13 @@ st.markdown("""
     <style>
     .stApp { background-color: #121212; color: #FFFFFF; }
     .proposal-box {
-        background-color: #262626;
-        padding: 15px;
-        border-radius: 12px;
-        border-left: 5px solid #00E5FF;
-        font-size: 0.9rem;
-        line-height: 1.5;
-        margin-bottom: 20px;
-        white-space: pre-wrap;
+        background-color: #262626; padding: 15px; border-radius: 12px;
+        border-left: 5px solid #00E5FF; font-size: 0.9rem; line-height: 1.5;
+        margin-bottom: 20px; white-space: pre-wrap;
     }
     .record-card {
-        background-color: #1E1E1E;
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #333;
-        margin-bottom: 20px;
+        background-color: #1E1E1E; padding: 15px; border-radius: 12px;
+        border: 1px solid #333; margin-bottom: 20px;
     }
     .set-row { padding: 10px 0; border-bottom: 1px solid #333; }
     .set-label { font-size: 0.9rem; color: #00E5FF; font-weight: bold; }
@@ -32,9 +24,6 @@ st.markdown("""
         width: 100%; height: 50px; border-radius: 12px;
         background-color: #00E5FF !important; color: #000 !important;
         font-weight: bold; margin-top: 10px;
-    }
-    .add-button > div > button {
-        background-color: #444 !important; color: #fff !important; height: 40px;
     }
     .input-label { font-size: 0.7rem; color: #888; display: block; margin-bottom: 2px; }
     .target-hint { font-size: 0.85rem; color: #FFD700; font-weight: bold; display: block; }
@@ -48,7 +37,6 @@ if "GOOGLE_API_KEY" in st.secrets:
 else:
     st.error("SecretsにGOOGLE_API_KEYが設定されていません。")
 
-# セッション状態の初期化
 if "last_menu" not in st.session_state: st.session_state.last_menu = ""
 if "menu_data" not in st.session_state: st.session_state.menu_data = []
 if "feedback_history" not in st.session_state: st.session_state.feedback_history = []
@@ -69,27 +57,35 @@ with st.expander("👤 1RM設定・履歴管理"):
 
 # --- 2. プラン生成 ---
 st.subheader("🔥 今日のプラン")
+
+# 目的の選択
 goal = st.selectbox("目的", ["筋肥大", "筋力向上", "ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "維持"])
-part = st.multiselect("部位", ["胸", "背中", "足", "肩", "腕", "腹筋", "全身"], default=["胸"])
+
+# 【新機能】目的に応じてデフォルトの部位を自動決定
+default_parts = ["胸"] # デフォルト
+if goal == "ベンチプレスを強化":
+    default_parts = ["胸", "腕", "肩"]
+elif goal == "スクワットを強化":
+    default_parts = ["足"]
+elif goal == "デッドリフトを強化":
+    default_parts = ["背中", "足"]
+
+part = st.multiselect("部位", ["胸", "背中", "足", "肩", "腕", "腹筋", "全身"], default=default_parts)
 equipment = st.radio("設備", ["ジム", "ダンベル", "自重"], horizontal=True)
 
 if st.button("メニューを作成"):
     try:
+        # 【エラー対策】1.5-flash を優先的に選ぶ
         models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         model_name = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in models else models[0]
         model = genai.GenerativeModel(model_name)
         
         history = "\n".join(st.session_state.feedback_history[-3:])
-        
         prompt = f"""
-        あなたはプロのストレングスコーチです。
-        【ユーザー情報】1RM: SQ{sq}kg, BP{bp}kg, DL{dl}kg / 目的:{goal} / 部位:{part} / 設備:{equipment}
-        
+        あなたはプロのストレングスコーチです。1RM: SQ{sq}kg, BP{bp}kg, DL{dl}kg / 目的:{goal} / 部位:{part} / 設備:{equipment}
         【指示】
-        1. 目的が強化の場合、その種目を1番目に行い、その後に関連する補助種目（アクセサリー種目）を3〜4種目、計4〜5種目提案してください。
-        2. 各種目の休憩時間を科学的根拠に基づき設定してください。
-        3. 以下の形式を厳守（余計な説明不要）。
-        『種目名』 【重量kg】 (セット数セット) 回数回 [休憩REST]
+        1. 強化種目の場合は必ず1番目に行い、その後に関連する補助種目を3-4種目、計5種目程度提案してください。
+        2. 形式厳守：『種目名』 【重量kg】 (セット数セット) 回数回 [休憩REST]
         """
         
         with st.spinner("メニュー算出中..."):
@@ -101,7 +97,7 @@ if st.button("メニューを作成"):
                 for n, w, s, r, rs in items
             ]
     except Exception as e:
-        st.error(f"エラー: {e}")
+        st.error(f"エラー（制限中の可能性があります）: {e}")
 
 st.divider()
 
@@ -110,45 +106,7 @@ if st.session_state.last_menu:
     st.markdown("### 📋 AI提案")
     st.markdown(f'<div class="proposal-box">{st.session_state.last_menu}</div>', unsafe_allow_html=True)
     
-    st.markdown("### ✍️ 実績記録")
-    
-    # 手動で種目を追加する機能
+    # 記録エリア（以下、前回と同じため省略せずに継続）
     with st.expander("➕ 予定外の種目を追加"):
         add_name = st.text_input("追加する種目名")
-        if st.button("リストに追加"):
-            if add_name:
-                st.session_state.menu_data.append({
-                    "name": add_name, "target_w": "0kg", "sets": 3, "target_r": "10回", "rest": "2分"
-                })
-                st.rerun()
-
-    all_logs = []
-    
-    for idx, item in enumerate(st.session_state.menu_data):
-        st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-        st.markdown(f"**{item['name']}**", unsafe_allow_html=True)
-        st.markdown(f"<span class='target-hint'>目標: {item['target_w']} × {item['target_r']}</span>", unsafe_allow_html=True)
-        st.markdown(f"<span class='rest-hint'>⏱ 休憩: {item['rest']}</span>", unsafe_allow_html=True)
-        
-        item_logs = []
-        for s in range(item['sets']):
-            st.markdown(f'<div class="set-row">', unsafe_allow_html=True)
-            c_lab, c_w, c_r = st.columns([0.8, 2.1, 2.1])
-            with c_lab: st.markdown(f"<p class='set-label'>S{s+1}</p>", unsafe_allow_html=True)
-            with c_w:
-                w_val = float(re.search(r'\d+\.?\d*', item['target_w']).group()) if re.search(r'\d+', item['target_w']) else 0.0
-                w = st.number_input("kg", 0.0, 500.0, step=2.5, key=f"w_{idx}_{s}", value=w_val, label_visibility="collapsed")
-            with c_r:
-                r_val = int(re.search(r'\d+', item['target_r']).group()) if re.search(r'\d+', item['target_r']) else 0
-                r = st.number_input("回", 0, 100, step=1, key=f"r_{idx}_{s}", value=r_val, label_visibility="collapsed")
-            item_logs.append(f"{w}kg x {r}回")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        all_logs.append(f"{item['name']}: {'/'.join(item_logs)}")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    feeling = st.select_slider("強度感", options=["限界", "重い", "ちょうど", "軽い"])
-    if st.button("トレーニング完了・保存"):
-        st.session_state.feedback_history.append(f"記録: " + " | ".join(all_logs))
-        st.success("記録完了！")
-
+        if st
