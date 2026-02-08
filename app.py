@@ -3,190 +3,205 @@ import google.generativeai as genai
 import re
 from datetime import datetime
 
-# --- 1. 基本設定 ---
-st.set_page_config(page_title="IRON AI TRAINER", page_icon="🏋️‍♂️")
+# --- 1. 基本設定 ＆ 究極のデザイン (CSS) ---
+st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wide")
 
-# --- 2. モチベーション重視 ＆ 視認性向上デザイン (CSS) ---
 st.markdown("""
     <style>
-    /* 全体の背景：鉄やジムをイメージした濃いグレーのグラデーション */
+    /* メイン背景：クリーンな白ベースにネオンのアクセント */
     .stApp {
-        background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #2c2c2c 100%);
-        color: #FFFFFF;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        color: #1d1d1f;
     }
     
-    /* 提案ボックス：より強調し、文字を大きく */
-    .proposal-box {
-        background-color: rgba(255, 255, 255, 0.05);
+    /* サイドバー：ダークで引き締める */
+    [data-testid="stSidebar"] {
+        background-color: #1c1c1e !important;
+        color: white;
+    }
+
+    /* コンテナ（カード風） */
+    .css-1r6slb0, .stVerticalBlock > div {
+        background-color: white;
         padding: 20px;
         border-radius: 15px;
-        border: 2px solid #00E5FF; /* 鮮やかな水色で視認性UP */
-        font-size: 1.1rem; /* 文字を大きく */
-        font-weight: 500;
-        line-height: 1.6;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0, 229, 255, 0.2);
-    }
-    
-    /* 実績カード：コントラストを強く */
-    .record-card {
-        background-color: #121212;
-        padding: 18px;
-        border-radius: 12px;
-        border: 1px solid #333;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         margin-bottom: 20px;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-    }
-    
-    /* 見出しやラベルを太く・大きく */
-    h1, h2, h3 {
-        color: #FFD700 !important; /* ゴールドで勝利をイメージ */
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-    }
-    
-    .stMarkdown p, .stMarkdown label {
-        font-size: 1rem !important;
-        font-weight: bold !important;
     }
 
-    /* RPMバッジ：もっと目立たせる */
-    .rpm-badge {
-        background-color: #FF4B4B;
-        color: white;
-        padding: 4px 10px;
+    /* 筋肉の妖精ボックス */
+    .fairy-card {
+        background: #2c2c2e;
         border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 900;
-        margin-left: 10px;
+        padding: 20px;
+        text-align: center;
+        color: white;
+        border: 2px solid #ff3b30;
     }
 
-    /* ボタン：よりデカく、押しやすく */
+    /* 記録カード */
+    .record-card {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 12px;
+        border-left: 5px solid #007aff;
+        margin-bottom: 15px;
+        border-top: 1px solid #eee;
+        border-right: 1px solid #eee;
+        border-bottom: 1px solid #eee;
+    }
+
+    /* ボタン：iOS風の洗練されたデザイン */
     .stButton > button {
         width: 100%;
-        height: 65px;
-        border-radius: 15px;
-        background: linear-gradient(90deg, #FF4B4B, #FF0000) !important;
+        height: 55px;
+        border-radius: 12px;
+        background: linear-gradient(90deg, #007aff, #00c6ff) !important;
         color: white !important;
-        font-size: 1.3rem !important;
-        font-weight: 900 !important;
+        font-size: 1.1rem !important;
+        font-weight: bold !important;
         border: none !important;
-        box-shadow: 0 5px 15px rgba(255, 75, 75, 0.4);
+        transition: 0.3s;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,122,255,0.3);
     }
 
-    /* サイドバーの育成エリア */
-    .level-bar { height: 15px; background-color: #333; border-radius: 10px; margin-top: 10px; }
-    .level-progress { height: 100%; background: #FFD700; border-radius: 10px; }
+    /* 文字色修正（視認性向上） */
+    h1, h2, h3, p, span, label {
+        color: #1d1d1f !important;
+    }
+    .fairy-card h1, .fairy-card h3, .fairy-card p {
+        color: white !important;
+    }
+    
+    /* RPMバッジ */
+    .rpm-badge {
+        background-color: #ff9500;
+        color: white !important;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# (以下、これまでのロジック部分は維持)
+# --- 2. ロジック関数 ---
 def calculate_1rm(w, r):
     if r <= 0: return 0
     if r == 1: return w
     return round(w * (1 + r / 30), 1)
 
-# API・セッション初期化
+# APIキー設定
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+# セッション初期化
 if "total_points" not in st.session_state: st.session_state.total_points = 0
 if "history_log" not in st.session_state: st.session_state.history_log = {}
 if "calendar_events" not in st.session_state: st.session_state.calendar_events = []
 if "menu_data" not in st.session_state: st.session_state.menu_data = []
+if "last_menu_text" not in st.session_state: st.session_state.last_menu_text = ""
 
-# --- 育成サイドバー ---
-def get_fairy_status(pts):
-    if pts < 200: return "卵期", "🥚", 200
-    if pts < 1000: return "幼少期", "🐣", 1000
-    if pts < 3000: return "マッチョ期", "💪🧚‍♂️", 3000
-    return "筋肉神", "🔱🔥", 10000
+# --- 3. 筋肉の妖精（育成システム） ---
+def get_fairy_info(pts):
+    if pts < 200:
+        return "たまご", "🥚", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/3o7TKMGpxxcaatNf0s/giphy.gif"
+    if pts < 1000:
+        return "ひよこマッチョ", "🐣", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/l41lI4bAdzSBDM3L2/giphy.gif"
+    return "筋肉の神", "🔱", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJwamNid2Z6ZzRycXp4eHh4eHh4eHh4eHh4eHh4eHh4eHh4JnB0PWEmZXA9djFfaW50ZXJuYWxfZ2lmX2J5X2lkJmN0PWc/3o7TKVUn7iM8FMEU24/giphy.gif"
 
-f_name, f_icon, next_lv = get_fairy_status(st.session_state.total_points)
-progress = min(100, int((st.session_state.total_points / next_lv) * 100))
+f_name, f_emoji, f_gif = get_fairy_info(st.session_state.total_points)
 
 with st.sidebar:
-    st.markdown(f"### 🧚‍♂️ 筋肉の妖精: {f_name}")
-    st.markdown(f"<h1 style='text-align:center; font-size: 80px;'>{f_icon}</h1>", unsafe_allow_html=True)
-    st.markdown(f"**Exp: {st.session_state.total_points} / {next_lv}**")
-    st.markdown(f'<div class="level-bar"><div class="level-progress" style="width: {progress}%;"></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="fairy-card">', unsafe_allow_html=True)
+    st.image(f_gif, caption=f"筋肉の妖精: {f_name}")
+    st.markdown(f"### {f_emoji} RANK: {f_name}")
+    st.progress(min(1.0, st.session_state.total_points / 2000))
+    st.write(f"Total Exp: {st.session_state.total_points} pt")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.title("🏋️‍♂️ IRON AI TRAINER")
+# --- 4. メインUI ---
+st.title("💪 GEMINI MUSCLE MATE")
 
-# --- メニュー生成 ---
+# 1RM設定
+with st.expander("👤 自分の限界(1RM)を編集"):
+    c1, c2, c3 = st.columns(3)
+    bp_max = c1.number_input("Bench Press", value=115.0)
+    sq_max = c2.number_input("Squat", value=160.0)
+    dl_max = c3.number_input("Deadlift", value=140.0)
+
+# メニュー生成
 with st.container():
-    goal = st.selectbox("MISSION", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
+    st.subheader("🎯 今日のミッション")
+    goal = st.selectbox("トレーニングの目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     
     # 自動部位選択
-    default_parts = ["胸"]
-    if "ベンチ" in goal: default_parts = ["胸", "腕", "肩"]
-    elif "スクワット" in goal: default_parts = ["足"]
-    elif "デッド" in goal: default_parts = ["背中", "足"]
+    d_parts = ["胸"]
+    if "ベンチ" in goal: d_parts = ["胸", "腕", "肩"]
+    elif "スクワット" in goal: d_parts = ["足"]
+    elif "デッド" in goal: d_parts = ["背中", "足"]
     
-    part = st.multiselect("TARGET AREA", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=default_parts)
-    equipment = st.radio("EQUIPMENT", ["ジム", "ダンベル", "自重"], horizontal=True)
+    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
 
-if st.button("AIプラン生成 (START)"):
-    try:
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        model_name = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in models else models[0]
-        model = genai.GenerativeModel(model_name)
-        
-        prompt = f"""
-        ストレングスコーチとしてメニューを組め。1RM: SQ:160kg, BP:115kg, DL:140kg / 目的:{goal} / 部位:{part} / 設備:{equipment}
-        【指示】
-        1. 強化種目を最初に入れ、補助種目を含め5種目。
-        2. 形式厳守：『種目名』 【重量kg】 (セット数セット) 回数回 [休憩REST]
-        """
+    if st.button("AIプラン生成"):
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"コーチとしてメニュー作成。1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max} / 目的:{goal} / 部位:{parts}。形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
         response = model.generate_content(prompt)
-        st.session_state.last_menu = response.text
-        items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)\s*\[(.*?)\]', response.text)
+        st.session_state.last_menu_text = response.text
+        items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', response.text)
+        
         st.session_state.menu_data = []
         for n, w, s, r, rs in items:
             w_val = float(re.search(r'\d+\.?\d*', w).group()) if re.search(r'\d+', w) else 0.0
-            r_val = int(re.search(r'\d+', r).group()) if re.search(r'\d+', r) else 0
+            r_val = int(re.search(r'\d+', r).group()) if r and re.search(r'\d+', r) else 8
             s_val = int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 3
             is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト"])
             st.session_state.menu_data.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
-    except Exception as e:
-        st.error(f"ERROR: {e}")
 
-# --- 記録エリア ---
-if st.session_state.last_menu:
-    st.markdown(f'<div class="proposal-box">{st.session_state.last_menu}</div>', unsafe_allow_html=True)
+# --- 5. 記録エリア ---
+if st.session_state.menu_data:
+    st.markdown(f"### 📋 AI提案メニュー")
+    st.info(st.session_state.last_menu_text)
     
-    current_session_logs = []
+    current_logs = []
     for idx, item in enumerate(st.session_state.menu_data):
         st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-        past_rpm = st.session_state.history_log.get(item['name'], "記録なし")
-        st.markdown(f"<span style='font-size: 1.2rem;'>**{item['name']}**</span> <span class='rpm-badge'>PB: {past_rpm}kg</span>", unsafe_allow_html=True)
-        st.markdown(f"<p style='color: #00FF7F; font-size: 0.9rem;'>休憩目安: {item['rest']}</p>", unsafe_allow_html=True)
+        pb = st.session_state.history_log.get(item['name'], "記録なし")
+        st.markdown(f"**{item['name']}** <span class='rpm-badge'>最高1RM: {pb}kg</span>", unsafe_allow_html=True)
         
-        sets_data = []
+        sets_results = []
         for s in range(item['sets']):
-            c1, c2, c3 = st.columns([2, 2, 2])
-            w = c1.number_input("kg", 0.0, 500.0, item['w_def'], key=f"w_{idx}_{s}")
-            r = c2.number_input("reps", 0, 100, item['r_def'], key=f"r_{idx}_{s}")
-            rpm = calculate_1rm(w, r)
-            c3.markdown(f"<p style='color:#FFD700; margin-top:30px;'>1RM: {rpm}kg</p>", unsafe_allow_html=True)
-            sets_data.append({"w": w, "r": r, "rpm": rpm})
+            col1, col2, col3 = st.columns([2, 2, 2])
+            w_input = col1.number_input(f"kg", 0.0, 500.0, item['w_def'], key=f"w_{idx}_{s}")
+            r_input = col2.number_input(f"回", 0, 100, item['r_def'], key=f"r_{idx}_{s}")
+            current_rpm = calculate_1rm(w_input, r_input)
+            col3.write(f"予測1RM: {current_rpm}kg")
+            sets_results.append({"w": w_input, "r": r_input, "rpm": current_rpm})
         
-        current_session_logs.append({"name": item['name'], "sets": sets_data, "is_compound": item['is_compound']})
+        current_logs.append({"name": item['name'], "sets": sets_results, "is_compound": item['is_compound']})
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("トレーニング完了 (FINISH)"):
-        session_pts = 0
-        for log in current_session_logs:
-            max_rpm = max([s['rpm'] for s in log['sets']])
-            if max_rpm > st.session_state.history_log.get(log['name'], 0):
-                st.session_state.history_log[log['name']] = max_rpm
+    if st.button("トレーニング完了！"):
+        pts = 0
+        for log in current_logs:
+            # 最高RPM更新チェック
+            m_rpm = max([s['rpm'] for s in log['sets']])
+            if m_rpm > st.session_state.history_log.get(log['name'], 0):
+                st.session_state.history_log[log['name']] = m_rpm
+            # ポイント計算
             vol = sum([s['w'] * s['r'] for s in log['sets']])
-            multiplier = 2.0 if log['is_compound'] else 1.0
-            session_pts += int((vol * multiplier) / 100)
+            pts += int((vol * (2.0 if log['is_compound'] else 1.0)) / 100)
         
-        st.session_state.total_points += session_pts
-        st.session_state.calendar_events.append(f"{datetime.now().strftime('%m/%d')} : {session_pts}pt獲得")
+        st.session_state.total_points += pts
+        st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt 獲得")
         st.balloons()
-        st.success(f"MISSION COMPLETE: {session_pts}pt GAINED!")
+        st.success(f"お疲れ様でした！ {pts}ポイント獲得し、妖精が成長しました！")
 
-with st.expander("📅 HISTORY"):
+# カレンダー履歴
+with st.expander("📅 過去のトレーニング履歴"):
     for ev in reversed(st.session_state.calendar_events):
         st.write(f"✅ {ev}")
