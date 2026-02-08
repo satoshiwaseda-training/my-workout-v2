@@ -74,7 +74,7 @@ st.title("🏋️‍♂️ AI TRAINER")
 
 # --- 1. 設定 & 1RM (折りたたみ式にして画面をスッキリ) ---
 with st.expander("👤 プロフィール・1RM設定"):
-    api_key = st.text_input("Gemini API Key", type="password")
+    api_key = st.secrets["GOOGLE_API_KEY"]
     c1, c2, c3 = st.columns(3)
     with c1: sq = st.number_input("SQ", 0, 500, 60)
     with c2: bp = st.number_input("BP", 0, 500, 40)
@@ -154,3 +154,4 @@ if st.session_state.last_menu:
         log_entry = f"感想:{feeling} / 記録:" + " | ".join(all_logs)
         st.session_state.feedback_history.append(log_entry)
         st.success("ナイスバルク！記録しました。")
+
