@@ -8,19 +8,15 @@ st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wi
 
 st.markdown("""
     <style>
-    /* メイン背景 */
     .stApp {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         color: #1d1d1f;
     }
-    
-    /* サイドバー背景 */
     [data-testid="stSidebar"] {
         background-color: #050505 !important;
         border-right: 2px solid #007aff;
     }
-
-    /* 【視認性強化】サイドバーの開閉ボタンアイコンを完全な白にする */
+    /* サイドバー開閉ボタンの白化 */
     button[aria-label="Close sidebar"] svg, 
     button[aria-label="Open sidebar"] svg,
     .st-emotion-cache-6qob1r svg {
@@ -28,15 +24,12 @@ st.markdown("""
         color: #ffffff !important;
         filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
     }
-    
     button[aria-label="Close sidebar"], 
     button[aria-label="Open sidebar"] {
         background-color: #007aff !important;
         border-radius: 50% !important;
         border: 1px solid white !important;
     }
-
-    /* サイドバー内の文字色 */
     [data-testid="stSidebar"] .stMarkdown p, 
     [data-testid="stSidebar"] .stMarkdown h1, 
     [data-testid="stSidebar"] .stMarkdown h2, 
@@ -44,7 +37,6 @@ st.markdown("""
     [data-testid="stSidebar"] label {
         color: #ffffff !important;
     }
-
     .fairy-card {
         background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%);
         border-radius: 20px;
@@ -53,13 +45,11 @@ st.markdown("""
         border: 1px solid rgba(0,122,255,0.3);
         margin: 10px 0;
     }
-
     .char-glow {
         font-size: 80px;
         filter: drop-shadow(0 0 20px rgba(255,255,255,0.4));
         display: block;
     }
-
     .system-log {
         background: #111;
         padding: 10px;
@@ -68,13 +58,11 @@ st.markdown("""
         font-family: 'Consolas', monospace;
         text-align: left;
     }
-
     .log-line {
         color: #00ff41 !important;
         font-size: 0.8rem !important;
         margin: 0 !important;
     }
-
     .record-card {
         background-color: #ffffff;
         padding: 15px;
@@ -83,7 +71,6 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
-
     .stButton > button {
         width: 100%;
         height: 55px;
@@ -94,7 +81,6 @@ st.markdown("""
         font-weight: bold !important;
         border: none !important;
     }
-    
     .rpm-badge {
         background-color: #ff3b30;
         color: white !important;
@@ -105,23 +91,39 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. モデル選択ロジック (エラー回避用) ---
+# --- 2. モデル & バックアップ用データ ---
 def get_best_model():
     try:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # gemini-1.5-flashを優先的に探し、なければ最初に見つかったものを使う
         for m in available_models:
-            if 'gemini-1.5-flash' in m:
-                return m
+            if 'gemini-1.5-flash' in m: return m
         return available_models[0]
-    except:
-        return "models/gemini-pro" # フォールバック
+    except: return "models/gemini-pro"
+
+# AIが使えない時の予備メニュー
+BACKUP_MENU = """
+※AI制限中のため、バックアップメニューを表示します。
+『ベンチプレス』 【70kg】 (3セット) 10回 [2分]
+『スクワット』 【100kg】 (3セット) 10回 [3分]
+『懸垂』 【0kg】 (3セット) 10回 [2分]
+"""
 
 # --- 3. ロジック関数 ---
 def calculate_1rm(w, r):
     if r <= 0: return 0
     if r == 1: return w
     return round(w * (1 + r / 30), 1)
+
+def parse_menu(text):
+    items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', text)
+    menu_list = []
+    for n, w, s, r, rs in items:
+        w_val = float(re.search(r'\d+\.?\d*', w).group()) if re.search(r'\d+', w) else 0.0
+        r_val = int(re.search(r'\d+', r).group()) if r and re.search(r'\d+', r) else 8
+        s_val = int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 3
+        is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト"])
+        menu_list.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
+    return menu_list
 
 # APIキー設定
 if "GOOGLE_API_KEY" in st.secrets:
@@ -155,16 +157,9 @@ with st.sidebar:
             </div>
         </div>
     ''', unsafe_allow_html=True)
-    
-    st.markdown("**⚡ ENERGY LEVEL**")
     st.progress(min(1.0, st.session_state.total_points / 3000))
-    st.markdown(f"<p style='text-align:right; font-size:0.8rem;'>{st.session_state.total_points} / 3000 EXP</p>", unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("### 🏆 RECORD ARCHIVE")
-    st.markdown(f"SQ: <span style='color:#00E5FF;'>{st.session_state.history_log.get('スクワット', 0)}kg</span>", unsafe_allow_html=True)
-    st.markdown(f"BP: <span style='color:#00E5FF;'>{st.session_state.history_log.get('ベンチプレス', 0)}kg</span>", unsafe_allow_html=True)
-    st.markdown(f"DL: <span style='color:#00E5FF;'>{st.session_state.history_log.get('デッドリフト', 0)}kg</span>", unsafe_allow_html=True)
+    st.markdown(f"**RECORD ARCHIVE**")
+    st.markdown(f"SQ: {st.session_state.history_log.get('スクワット', 0)}kg | BP: {st.session_state.history_log.get('ベンチプレス', 0)}kg")
 
 # --- 6. メインUI ---
 st.title("💪 GEMINI MUSCLE MATE")
@@ -178,31 +173,20 @@ with st.expander("👤 1RMデータ設定"):
 with st.container():
     st.subheader("🎯 MISSION SELECT")
     goal = st.selectbox("目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
-    
-    d_parts = ["胸"]
-    if "ベンチ" in goal: d_parts = ["胸", "腕", "肩"]
-    elif "スクワット" in goal: d_parts = ["足"]
-    elif "デッド" in goal: d_parts = ["背中", "足"]
-    
-    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
+    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=["胸"])
 
     if st.button("AIメニュー生成 (INITIATE)"):
         try:
-            model_name = get_best_model() # ここで適切なモデルを自動取得
+            model_name = get_best_model()
             model = genai.GenerativeModel(model_name)
             prompt = f"コーチとしてメニュー作成。1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max} / 目的:{goal} / 部位:{parts}。形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
             response = model.generate_content(prompt)
             st.session_state.last_menu_text = response.text
-            items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', response.text)
-            st.session_state.menu_data = []
-            for n, w, s, r, rs in items:
-                w_val = float(re.search(r'\d+\.?\d*', w).group()) if re.search(r'\d+', w) else 0.0
-                r_val = int(re.search(r'\d+', r).group()) if r and re.search(r'\d+', r) else 8
-                s_val = int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 3
-                is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト"])
-                st.session_state.menu_data.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
         except Exception as e:
-            st.error(f"AIエラーが発生しました。時間を置いて試してください: {e}")
+            st.warning("⚠️ AIが休憩中です！バックアップメニューを使用します。")
+            st.session_state.last_menu_text = BACKUP_MENU
+        
+        st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
 if st.session_state.menu_data:
     st.info(st.session_state.last_menu_text)
