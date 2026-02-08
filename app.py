@@ -6,7 +6,6 @@ from datetime import datetime
 # --- 1. 基本設定 ＆ 究極のデザイン (CSS) ---
 st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wide")
 
-# CSSでサイドバーの開閉ボタンを「完全な白」に強制上書きします
 st.markdown("""
     <style>
     /* メイン背景 */
@@ -21,7 +20,7 @@ st.markdown("""
         border-right: 2px solid #007aff;
     }
 
-    /* 【解決策】サイドバーの開閉ボタンアイコン(svg)を完全な白にする */
+    /* 【視認性強化】サイドバーの開閉ボタンアイコンを完全な白にする */
     button[aria-label="Close sidebar"] svg, 
     button[aria-label="Open sidebar"] svg,
     .st-emotion-cache-6qob1r svg {
@@ -30,7 +29,6 @@ st.markdown("""
         filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
     }
     
-    /* ボタン自体の背景を青くして視認性を高める */
     button[aria-label="Close sidebar"], 
     button[aria-label="Open sidebar"] {
         background-color: #007aff !important;
@@ -47,7 +45,6 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* キャラクターカードのデザイン */
     .fairy-card {
         background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%);
         border-radius: 20px;
@@ -60,7 +57,6 @@ st.markdown("""
     .char-glow {
         font-size: 80px;
         filter: drop-shadow(0 0 20px rgba(255,255,255,0.4));
-        margin: 10px 0;
         display: block;
     }
 
@@ -77,7 +73,6 @@ st.markdown("""
         color: #00ff41 !important;
         font-size: 0.8rem !important;
         margin: 0 !important;
-        line-height: 1.4;
     }
 
     .record-card {
@@ -110,7 +105,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ロジック関数 ---
+# --- 2. モデル選択ロジック (エラー回避用) ---
+def get_best_model():
+    try:
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # gemini-1.5-flashを優先的に探し、なければ最初に見つかったものを使う
+        for m in available_models:
+            if 'gemini-1.5-flash' in m:
+                return m
+        return available_models[0]
+    except:
+        return "models/gemini-pro" # フォールバック
+
+# --- 3. ロジック関数 ---
 def calculate_1rm(w, r):
     if r <= 0: return 0
     if r == 1: return w
@@ -127,7 +134,7 @@ if "calendar_events" not in st.session_state: st.session_state.calendar_events =
 if "menu_data" not in st.session_state: st.session_state.menu_data = []
 if "last_menu_text" not in st.session_state: st.session_state.last_menu_text = ""
 
-# --- 3. 筋肉の妖精（育成システム） ---
+# --- 4. 筋肉の妖精情報 ---
 def get_fairy_info(pts):
     if pts < 300: return "PROTO-TYPE", "🥚", "ANALYZING..."
     if pts < 1500: return "MUSCLE-V1", "🐣", "ACTIVE"
@@ -135,7 +142,7 @@ def get_fairy_info(pts):
 
 f_name, f_emoji, f_status = get_fairy_info(st.session_state.total_points)
 
-# --- 4. サイドバー表示 ---
+# --- 5. サイドバー ---
 with st.sidebar:
     st.markdown("## 🛠️ UNIT STATUS")
     st.markdown(f'''
@@ -159,7 +166,7 @@ with st.sidebar:
     st.markdown(f"BP: <span style='color:#00E5FF;'>{st.session_state.history_log.get('ベンチプレス', 0)}kg</span>", unsafe_allow_html=True)
     st.markdown(f"DL: <span style='color:#00E5FF;'>{st.session_state.history_log.get('デッドリフト', 0)}kg</span>", unsafe_allow_html=True)
 
-# --- 5. メインUI ---
+# --- 6. メインUI ---
 st.title("💪 GEMINI MUSCLE MATE")
 
 with st.expander("👤 1RMデータ設定"):
@@ -170,18 +177,19 @@ with st.expander("👤 1RMデータ設定"):
 
 with st.container():
     st.subheader("🎯 MISSION SELECT")
-    goal = st.selectbox("GOAL", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
+    goal = st.selectbox("目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     
     d_parts = ["胸"]
     if "ベンチ" in goal: d_parts = ["胸", "腕", "肩"]
     elif "スクワット" in goal: d_parts = ["足"]
     elif "デッド" in goal: d_parts = ["背中", "足"]
     
-    parts = st.multiselect("TARGET", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
+    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=d_parts)
 
-    if st.button("AIプラン生成"):
+    if st.button("AIメニュー生成 (INITIATE)"):
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model_name = get_best_model() # ここで適切なモデルを自動取得
+            model = genai.GenerativeModel(model_name)
             prompt = f"コーチとしてメニュー作成。1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max} / 目的:{goal} / 部位:{parts}。形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
             response = model.generate_content(prompt)
             st.session_state.last_menu_text = response.text
@@ -194,7 +202,7 @@ with st.container():
                 is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト"])
                 st.session_state.menu_data.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"AIエラーが発生しました。時間を置いて試してください: {e}")
 
 if st.session_state.menu_data:
     st.info(st.session_state.last_menu_text)
