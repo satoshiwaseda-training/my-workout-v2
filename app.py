@@ -26,7 +26,6 @@ st.markdown("""
         border: 1px solid #333;
         margin-bottom: 15px;
     }
-    /* セットごとの入力行のデザイン調整 */
     .set-row {
         display: flex;
         align-items: center;
@@ -49,11 +48,15 @@ st.markdown("""
         color: #000 !important;
         font-weight: bold;
     }
-    /* 入力欄ラベルの視認性向上 */
     .input-caption {
         font-size: 0.7rem;
         color: #888;
         margin-bottom: -15px;
+    }
+    .target-hint {
+        font-size: 0.75rem;
+        color: #FFD700; /* ゴールドっぽい色で目標を強調 */
+        margin-top: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -107,12 +110,17 @@ if st.button("メニューを作成"):
             response = model.generate_content(prompt)
             st.session_state.last_menu = response.text
             
-            # AI回答から情報を抽出
-            items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)', response.text)
+            # AI回答から情報を抽出 (種目名、重量、セット数、回数)
+            items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)', response.text)
             st.session_state.menu_data = []
-            for name, weight, set_str in items:
+            for name, weight, set_str, rep_str in items:
                 set_num = int(re.search(r'\d+', set_str).group()) if re.search(r'\d+', set_str) else 3
-                st.session_state.menu_data.append({"name": name, "target_w": weight, "sets": set_num})
+                st.session_state.menu_data.append({
+                    "name": name, 
+                    "target_w": weight, 
+                    "sets": set_num,
+                    "target_r": rep_str
+                })
     except Exception as e:
         st.error(f"エラー: {e}")
 
@@ -123,26 +131,26 @@ if st.session_state.last_menu:
     st.markdown("### 📋 AI提案メニュー")
     st.markdown(f'<div class="proposal-box">{st.session_state.last_menu}</div>', unsafe_allow_html=True)
     
-    st.markdown("### ✍️ セット別実績 (重量と回数)")
+    st.markdown("### ✍️ セット別実績")
     all_logs = []
     
     for idx, item in enumerate(st.session_state.menu_data):
         st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-        st.markdown(f"**{item['name']}** <small>(目標: {item['target_w']})</small>", unsafe_allow_html=True)
+        # タイトル部分に目標重量と目標回数を表示
+        st.markdown(f"**{item['name']}** <br><span class='target-hint'>目標: {item['target_w']} × {item['target_r']}</span>", unsafe_allow_html=True)
         
         item_logs = []
         for s in range(item['sets']):
-            # 重量と回数の入力欄
             st.markdown(f'<div class="set-row">', unsafe_allow_html=True)
             col_label, col_weight, col_reps = st.columns([1, 2, 2])
             
             with col_label:
                 st.markdown(f"<p class='set-label'>S{s+1}</p>", unsafe_allow_html=True)
             with col_weight:
-                st.markdown("<p class='input-caption'>重量(kg)</p>", unsafe_allow_html=True)
+                st.markdown("<p class='input-caption'>kg</p>", unsafe_allow_html=True)
                 w = st.number_input(f"w_{idx}_{s}", 0.0, 500.0, step=2.5, key=f"w_{idx}_{s}", label_visibility="collapsed")
             with col_reps:
-                st.markdown("<p class='input-caption'>回数(rep)</p>", unsafe_allow_html=True)
+                st.markdown("<p class='input-caption'>回数</p>", unsafe_allow_html=True)
                 r = st.number_input(f"r_{idx}_{s}", 0, 100, step=1, key=f"r_{idx}_{s}", label_visibility="collapsed")
             
             item_logs.append(f"{w}kg x {r}回")
