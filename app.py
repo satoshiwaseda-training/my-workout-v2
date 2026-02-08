@@ -58,9 +58,9 @@ st.title("🏋️‍♂️ AI TRAINER")
 # --- 1. プロフィール設定 ---
 with st.expander("👤 1RM設定・履歴管理"):
     c1, c2, c3 = st.columns(3)
-    with c1: sq = st.number_input("SQ", 0, 500, 60)
-    with c2: bp = st.number_input("BP", 0, 500, 40)
-    with c3: dl = st.number_input("DL", 0, 500, 80)
+    with c1: sq = st.number_input("SQ", 0, 500, 160)
+    with c2: bp = st.number_input("BP", 0, 500, 115)
+    with c3: dl = st.number_input("DL", 0, 500, 140)
     if st.button("全履歴を消去"):
         st.session_state.feedback_history = []
         st.session_state.last_menu = ""
@@ -151,3 +151,4 @@ if st.session_state.last_menu:
     if st.button("トレーニング完了・保存"):
         st.session_state.feedback_history.append(f"記録: " + " | ".join(all_logs))
         st.success("記録完了！")
+
