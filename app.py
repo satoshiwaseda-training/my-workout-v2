@@ -55,10 +55,9 @@ def parse_menu(text):
 
 # API & セッション初期化
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-for key, val in {"total_points": 0, "history_log": {}, "calendar_events": [], "menu_data": [], "last_menu_text": "", "fav_menu": "（例：2秒止めベンチやナローベンチを重視したい）"}.items():
+for key, val in {"total_points": 0, "history_log": {}, "calendar_events": [], "menu_data": [], "last_menu_text": "", "fav_menu": ""}.items():
     if key not in st.session_state: st.session_state[key] = val
 
-# キャラクター成長
 def get_fairy_info(pts):
     if pts < 300: return "PROTO-TYPE", "🥚", "ANALYZING..."
     if pts < 1500: return "MUSCLE-V1", "🐣", "ACTIVE"
@@ -74,21 +73,7 @@ with st.sidebar:
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# 学習機能（ファイル & テキスト）
-with st.expander("🧠 AIに自分の好みを学習させる（Drive/ファイル対応）"):
-    st.write("Driveで見つかった「120kgプログラム」などのこだわりをここに反映させてください。")
-    uploaded_file = st.file_uploader("Excel/PDF/CSVをアップロードして学習", type=["xlsx", "pdf", "csv", "txt"])
-    file_content = ""
-    if uploaded_file:
-        try:
-            if uploaded_file.name.endswith('.xlsx'): file_content = pd.read_excel(uploaded_file).to_string()
-            elif uploaded_file.name.endswith('.csv'): file_content = pd.read_csv(uploaded_file).to_string()
-            else: file_content = uploaded_file.read().decode('utf-8')
-            st.success(f"✅ {uploaded_file.name} を学習用データとして読み込みました！")
-        except: st.error("ファイルの読み込みに失敗しました。")
-    st.session_state.fav_menu = st.text_area("具体的なこだわり（例：Driveの120kgプログラムを参考にして）", value=st.session_state.fav_menu)
-
-# メニュー生成
+# 1. トレーニング設定（最優先）
 with st.container():
     c1, c2, c3 = st.columns(3)
     bp_max = c1.number_input("Bench Press 1RM", value=115.0)
@@ -99,9 +84,11 @@ with st.container():
     parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=["胸"])
 
     if st.button("AIメニュー生成 (INITIATE)"):
+        # 下に配置した学習セクションの内容をここで取得
+        file_data = st.session_state.get('file_content_cache', "")
         try:
             model = genai.GenerativeModel(get_best_model())
-            prompt = f"コーチとして以下の設定でメニュー作成。\n【こだわり】{st.session_state.fav_menu}\n【ファイルデータ】{file_content}\n1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max}\n目的: {goal}, 部位: {parts}\n形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
+            prompt = f"コーチとして以下の設定でメニュー作成。\n【こだわり】{st.session_state.fav_menu}\n【学習データ】{file_data}\n1RM: SQ{sq_max}, BP{bp_max}, DL{dl_max}\n目的: {goal}, 部位: {parts}\n形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
             response = model.generate_content(prompt)
             st.session_state.last_menu_text = response.text
         except:
@@ -109,7 +96,7 @@ with st.container():
             st.session_state.last_menu_text = "『ベンチプレス』 【90kg】 (3セット) 8回 [3分]\n『ナローベンチ』 【80kg】 (3セット) 10回 [2分]"
         st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
-# 記録エリア
+# 2. 記録エリア
 if st.session_state.menu_data:
     st.info(st.session_state.last_menu_text)
     current_logs = []
@@ -136,3 +123,22 @@ if st.session_state.menu_data:
         st.session_state.total_points += pts
         st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt")
         st.balloons()
+
+# 3. 学習機能 ＆ 履歴（普段使わないものは下へ）
+st.markdown("---")
+with st.expander("📅 過去のトレーニングログ"):
+    for ev in reversed(st.session_state.calendar_events):
+        st.write(f"✅ {ev}")
+
+with st.expander("🧠 AI学習・こだわり設定（ファイル/テキスト）"):
+    st.write("特定のメニュー構成や、過去の成功パターンをAIに反映させたい場合に使用します。")
+    uploaded_file = st.file_uploader("Excel/PDF/CSVをアップロード", type=["xlsx", "pdf", "csv", "txt"])
+    if uploaded_file:
+        try:
+            if uploaded_file.name.endswith('.xlsx'): content = pd.read_excel(uploaded_file).to_string()
+            elif uploaded_file.name.endswith('.csv'): content = pd.read_csv(uploaded_file).to_string()
+            else: content = uploaded_file.read().decode('utf-8')
+            st.session_state['file_content_cache'] = content
+            st.success(f"✅ {uploaded_file.name} を読み込みました。")
+        except: st.error("ファイルの読み込みに失敗しました。")
+    st.session_state.fav_menu = st.text_area("テキストでのこだわり入力", value=st.session_state.fav_menu, placeholder="例：ベンチプレスの日はナローベンチを最後に入れたい、など")
