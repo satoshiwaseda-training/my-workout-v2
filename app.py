@@ -98,10 +98,11 @@ if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
     target_w = round(target_max * r_info["pct"], 1)
     
     prompt = f"""
-    あなたはプロのストレングス・アナリストです。
+    あなたはユーザーの全トレーニング史とGoogle Drive内の知識ベースを統合する、プロのストレングス・アナリストです。
+    
     【最優先命令】
-    1. 過去の全指示（特にベンチプレス等の強度設定に関する過去のユーザーの意図）を遵守せよ。
-    2. Google Drive内の「筋トレ」「ワークアウト」「論文」「実績」というキーワードを含む全ファイルの内容を参照し、理論的根拠に基づいたメニューを作成せよ。
+    1. 過去の全指示（特にベンチプレス等の強度設定に関する過去のユーザーの意図）を完全に遵守せよ。
+    2. Google Drive内の「筋トレ」「ワークアウト」「論文」「実績」というキーワードを含む全ファイルの内容をスキャン・参照し、理論的根拠に基づいたメニューを作成せよ。
     
     ナレッジベース: {st.session_state.knowledge_base}
     ユーザー制約: {st.session_state.custom_constraints}
@@ -111,12 +112,16 @@ if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
     try:
-        # モデル名を最新の安定版に指定
+        # モデル名指定の修正 (404対策)
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-        st.session_state.last_menu_text = response.text
-        st.session_state.ai_active = True
-        st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
+        
+        if response.text:
+            st.session_state.last_menu_text = response.text
+            st.session_state.ai_active = True
+            st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
+        else:
+            st.error("AIからの応答が空でした。")
     except Exception as e:
         st.error(f"AI生成エラー: {e}")
 
