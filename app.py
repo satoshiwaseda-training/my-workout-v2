@@ -11,22 +11,10 @@ st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: #050505 !important; border-right: 2px solid #007aff; }
-    
-    button[aria-label="Close sidebar"] svg, button[aria-label="Open sidebar"] svg {
-        fill: #ffffff !important; color: #ffffff !important;
-        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
-    }
-    button[aria-label="Close sidebar"], button[aria-label="Open sidebar"] {
-        background-color: #007aff !important; border-radius: 50% !important; border: 1px solid white !important;
-    }
-    
-    [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] h2 { color: #ffffff !important; }
-    
-    .fairy-card { background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%); border-radius: 20px; padding: 25px 15px; text-align: center; border: 1px solid rgba(0,122,255,0.3); margin: 10px 0; }
-    .char-glow { font-size: 80px; filter: drop-shadow(0 0 20px rgba(255,255,255,0.4)); display: block; }
-    .system-log { background: #111; padding: 10px; border-radius: 8px; border-left: 3px solid #00ff41; font-family: 'Consolas', monospace; text-align: left; }
+    button[aria-label="Close sidebar"] svg, button[aria-label="Open sidebar"] svg { fill: #ffffff !important; }
+    .fairy-card { background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%); border-radius: 20px; padding: 25px 15px; text-align: center; border: 1px solid rgba(0,122,255,0.3); }
+    .system-log { background: #111; padding: 10px; border-radius: 8px; border-left: 3px solid #00ff41; font-family: 'Consolas', monospace; }
     .log-line { color: #00ff41 !important; font-size: 0.8rem !important; margin: 0 !important; }
-    
     .record-card { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .footer-spacer { margin-top: 150px; border-top: 1px solid #ccc; padding-top: 20px; }
     </style>
@@ -51,14 +39,16 @@ def parse_menu(text):
     items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', text)
     menu_list = []
     for n, w, s, r, rs in items:
-        w_val = float(re.search(r'\d+\.?\d*', w).group()) if re.search(r'\d+', w) else 0.0
-        r_val = int(re.search(r'\d+', r).group()) if r and re.search(r'\d+', r) else 8
-        s_val = int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 3
-        is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト", "懸垂"])
-        menu_list.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
+        try:
+            w_val = float(re.search(r'\d+\.?\d*', w).group()) if re.search(r'\d+', w) else 0.0
+            r_val = int(re.search(r'\d+', r).group()) if r and re.search(r'\d+', r) else 8
+            s_val = int(re.search(r'\d+', s).group()) if re.search(r'\d+', s) else 3
+            is_c = any(x in n for x in ["ベンチプレス", "スクワット", "デッドリフト", "懸垂"])
+            menu_list.append({"name": n, "w_def": w_val, "r_def": r_val, "sets": s_val, "rest": rs, "is_compound": is_c})
+        except: continue
     return menu_list
 
-# API & セッション初期化
+# セッション初期化
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 for key, val in {
     "total_points": 0, "history_log": {}, "calendar_events": [], 
@@ -71,6 +61,7 @@ for key, val in {
 current_cycle_step = (st.session_state.routine_count % 6) + 1
 r_info = BENCH_ROUTINE[current_cycle_step]
 
+# キャラ成長
 def get_fairy_info(pts):
     if pts < 300: return "PROTO-TYPE", "🥚", "ANALYZING..."
     if pts < 1500: return "MUSCLE-V1", "🐣", "ACTIVE"
@@ -80,96 +71,80 @@ f_name, f_emoji, f_status = get_fairy_info(st.session_state.total_points)
 # --- 4. UI表示 ---
 with st.sidebar:
     st.markdown(f'## 🛠️ UNIT STATUS')
-    st.markdown(f'''
-        <div class="fairy-card">
-            <span class="char-glow">{f_emoji}</span>
-            <div class="system-log">
-                <p class="log-line">> ID: {f_name}</p>
-                <p class="log-line">> STATUS: {f_status}</p>
-                <p class="log-line">> CYCLE: {current_cycle_step}/6</p>
-                <p class="log-line">> MSG: {r_info["msg"]}</p>
-            </div>
-        </div>
-    ''', unsafe_allow_html=True)
+    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">{f_emoji}</span><div class="system-log"><p class="log-line">> ID: {f_name}</p><p class="log-line">> STATUS: {f_status}</p><p class="log-line">> CYCLE: {current_cycle_step}/6</p><p class="log-line">> MSG: {r_info["msg"]}</p></div></div>''', unsafe_allow_html=True)
     st.progress(current_cycle_step / 6)
-    st.markdown(f"**ARCHIVE**\nSQ: {st.session_state.history_log.get('スクワット', 0)}kg | BP: {st.session_state.history_log.get('ベンチプレス', 0)}kg")
+    st.write(f"SQ: {st.session_state.history_log.get('スクワット', 0)}kg | BP: {st.session_state.history_log.get('ベンチプレス', 0)}kg")
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# メイン操作
-with st.container():
-    goal = st.selectbox("トレーニング目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
-    
-    default_parts = ["胸"]
-    if "ベンチ" in goal: default_parts = ["胸", "腕", "肩"]
-    elif "スクワット" in goal: default_parts = ["足"]
-    elif "デッド" in goal: default_parts = ["背中", "足"]
-    
-    parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=default_parts)
+# 1. 生成セクション
+goal = st.selectbox("トレーニング目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
+default_parts = ["胸"]
+if "ベンチ" in goal: default_parts = ["胸", "腕", "肩"]
+elif "スクワット" in goal: default_parts = ["足"]
+elif "デッド" in goal: default_parts = ["背中", "足"]
+parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=default_parts)
 
-    if st.button("AIメニュー生成 (INITIATE)", type="primary"):
-        target_w = round(st.session_state.bp_max * r_info["pct"], 1)
-        try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            prompt = f"""コーチとして以下のベンチプレス指定を最優先して。
-            【今回の指定】重量: {target_w}kg, セット: {r_info["sets"]}, レップ: {r_info["reps"]}
-            【ベース種目】背中:懸垂/ラットプル/ベントロー, 胸:ナロー/ケーブル, 脚:SQ/ブルガリアン
-            こだわり: {st.session_state.fav_menu}, 学習データ: {st.session_state.file_content_cache}
-            目的: {goal}, 部位: {parts}
-            形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"""
-            response = model.generate_content(prompt)
-            st.session_state.last_menu_text = response.text
-            st.session_state.menu_data = parse_menu(response.text)
-        except: st.warning("AIエラー")
+if st.button("AIメニュー生成 (INITIATE)", type="primary"):
+    target_w = round(st.session_state.bp_max * r_info["pct"], 1)
+    
+    # --- 【強化】バックアップメニューの定義 ---
+    backup_text = f"『ベンチプレス』 【{target_w}kg】 ({r_info['sets']}セット) {r_info['reps']}回 [3分]\n"
+    if "胸" in parts: backup_text += "『ナローベンチプレス』 【60kg】 (3セット) 10回 [2分]\n『ケーブルクロスオーバー』 【20kg】 (3セット) 15回 [1分]\n"
+    if "背中" in parts: backup_text += "『懸垂』 【0kg】 (3セット) 10回 [2分]\n『ベントオーバーロー』 【60kg】 (3セット) 10回 [2分]\n"
+    if "足" in parts: backup_text += "『スクワット』 【100kg】 (3セット) 8回 [3分]\n『ブルガリアンスクワット』 【20kg】 (3セット) 10回 [2分]\n"
 
-# 記録エリア
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        prompt = f"コーチとして、ベンチプレス({target_w}kg, {r_info['sets']}set, {r_info['reps']}rep)を核にし、背中(懸垂/ベントロー)、胸(ナロー/ケーブル)、足(SQ/ブルガリアン)を優先したメニューを提案して。形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
+        response = model.generate_content(prompt)
+        st.session_state.last_menu_text = response.text
+    except:
+        st.warning("⚠️ AIがオフラインのため、王道バックアップメニューを展開します。")
+        st.session_state.last_menu_text = backup_text
+    
+    st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
+
+# 2. 記録エリア
 if st.session_state.menu_data:
-    st.info(f"第 {current_cycle_step} 回目のルーティン適用中\n{st.session_state.last_menu_text}")
+    st.info(f"第 {current_cycle_step} 回ルーティン適用中")
     current_logs = []
     for idx, item in enumerate(st.session_state.menu_data):
         st.markdown(f'<div class="record-card">', unsafe_allow_html=True)
-        col_title, col_ctrl = st.columns([3, 1])
-        col_title.markdown(f"### {item['name']}")
-        new_sets = col_ctrl.number_input("セット数", 1, 10, item['sets'], key=f"sets_num_{idx}")
-        sets_results = []
+        col_t, col_s = st.columns([3, 1])
+        col_t.markdown(f"### {item['name']}")
+        new_sets = col_s.number_input("セット数", 1, 10, item['sets'], key=f"s_{idx}")
+        
+        sets_res = []
         for s in range(new_sets):
             c1, c2, c3 = st.columns(3)
             w = c1.number_input(f"kg", 0.0, 500.0, item['w_def'], key=f"w_{idx}_{s}")
             r = c2.number_input(f"回", 0, 100, item['r_def'], key=f"r_{idx}_{s}")
-            sets_results.append({"w": w, "r": r, "rpm": calculate_1rm(w, r)})
-        current_logs.append({"name": item['name'], "sets": sets_results, "is_compound": item['is_compound']})
+            sets_res.append({"w": w, "r": r, "rpm": calculate_1rm(w, r)})
+        current_logs.append({"name": item['name'], "sets": sets_res, "is_compound": item['is_compound']})
         st.markdown('</div>', unsafe_allow_html=True)
 
     if st.button("ミッション完了！ (FINISH)", type="primary"):
         if any("ベンチプレス" in log["name"] for log in current_logs): st.session_state.routine_count += 1
         pts = int(sum([s['w'] * s['r'] for log in current_logs for s in log['sets']]) / 100)
         st.session_state.total_points += pts
-        st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt (Step {current_cycle_step})")
+        st.session_state.calendar_events.append(f"{datetime.now().strftime('%m/%d')} : {pts}pt (Step {current_cycle_step})")
         st.balloons()
         st.session_state.menu_data = []
         st.rerun()
 
-# --- メンテナンスエリア（ここを以前の形式に完全復旧） ---
+# 3. メンテナンス
 st.markdown('<div class="footer-spacer"></div>', unsafe_allow_html=True)
-st.markdown("### ⚙️ SETTINGS & ARCHIVE")
-
-with st.expander("📅 トレーニング履歴"):
-    if not st.session_state.calendar_events: st.write("記録なし")
+with st.expander("📅 履歴 / 👤 1RM / 🧠 学習"):
+    st.write("--- 履歴 ---")
     for ev in reversed(st.session_state.calendar_events): st.write(f"✅ {ev}")
-
-with st.expander("👤 1RM / プログラム手動調整"):
+    st.write("--- 1RM設定 ---")
     c1, c2, c3 = st.columns(3)
     st.session_state.bp_max = c1.number_input("Bench Press 1RM", value=st.session_state.bp_max)
     st.session_state.sq_max = c2.number_input("Squat 1RM", value=st.session_state.sq_max)
     st.session_state.dl_max = c3.number_input("Deadlift 1RM", value=st.session_state.dl_max)
     st.session_state.routine_count = st.number_input("累計カウント(調整用)", value=st.session_state.routine_count)
-
-with st.expander("🧠 AI学習・こだわり設定"):
-    up_file = st.file_uploader("ファイルをアップロードして学習", type=["xlsx", "pdf", "csv", "txt"])
-    if up_file:
-        try:
-            content = up_file.read().decode('utf-8')
-            st.session_state.file_content_cache = content
-            st.success("✅ 学習完了")
-        except: st.error("エラー")
-    st.session_state.fav_menu = st.text_area("テキストでのこだわり入力", value=st.session_state.fav_menu)
+    st.write("--- AI学習・こだわり ---")
+    up_file = st.file_uploader("学習ファイル", type=["xlsx", "pdf", "csv", "txt"])
+    if up_file: st.session_state.file_content_cache = up_file.read().decode('utf-8')
+    st.session_state.fav_menu = st.text_area("こだわり", value=st.session_state.fav_menu)
