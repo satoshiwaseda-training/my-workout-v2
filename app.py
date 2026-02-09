@@ -18,25 +18,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 独自ルーティン設定 (BIG3共通) ---
-# プログラム進行度に応じた強度設定
-CYCLE_CONFIG = {
-    1: {"pct": 0.60, "reps": 8, "sets": 4, "msg": "導入期。2月の実績をベースにフォームを安定させよう。"},
-    2: {"pct": 0.70, "reps": 8, "sets": 5, "msg": "ボリューム期。筋持久力の限界を叩け！"},
-    3: {"pct": 0.70, "reps": 7, "sets": 5, "msg": "中盤戦。集中力こそがパワーだ。"},
-    4: {"pct": 0.75, "reps": 6, "sets": 4, "msg": "調整期。高重量への神経系を繋ぐよ。"},
-    5: {"pct": 0.80, "reps": 5, "sets": 4, "msg": "高重量期！2月の自分を超える時が来た！"},
-    6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "クライマックス。限界突破の準備はいいか？"},
+# --- 2. データ定義 ---
+POPULAR_DICT = {
+    "胸": ["ベンチプレス", "ダンベルフライ", "チェストプレス", "ペクトラルフライ", "インクラインDBプレス", "ケーブルクロス"],
+    "背中": ["チンニング(懸垂)", "ラットプルダウン", "ベントオーバーロー", "シーテッドロー", "ワンハンドロー", "デッドリフト"],
+    "足": ["スクワット", "レッグプレス", "レッグエクステンション", "レッグカール", "ブルガリアンSQ", "ハックSQ", "V-SQ"],
+    "肩": ["サイドレイズ", "ショルダープレス", "リアレイズ", "アップライトロー", "フロントレイズ"],
+    "腕": ["アームカール", "インクラインカール", "ハンマーカール", "ナロープレス", "プレスダウン", "フレンチプレス"],
+    "腹筋": ["アブドミナル", "アブローラー", "レッグレイズ", "クランチ"]
 }
 
-# 2月実績データの定義
-FEB_ARCHIVE = """
-【2月実績ハイライト】
-- ベンチプレス: 103.5kg (2/9達成)
-- スクワット: 168.75kg (2/7達成)
-- チンニング: 112.5kg (RM)
-- ラットプルダウン: 102.5kg
-"""
+# ルーティン強度
+CYCLE_CONFIG = {
+    1: {"pct": 0.60, "reps": 8, "sets": 4, "msg": "導入期。2月の実績をベースに！"},
+    2: {"pct": 0.70, "reps": 8, "sets": 5, "msg": "ボリューム期。筋持久力を叩け！"},
+    3: {"pct": 0.70, "reps": 7, "sets": 5, "msg": "中盤戦。集中力こそがパワー。"},
+    4: {"pct": 0.75, "reps": 6, "sets": 4, "msg": "調整期。高重量への神経を繋ぐ。"},
+    5: {"pct": 0.80, "reps": 5, "sets": 4, "msg": "高重量期！自分を超える時！"},
+    6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "限界突破の準備はいいか？"},
+}
 
 # --- 3. ロジック関数 ---
 def calculate_1rm(w, r):
@@ -64,7 +64,7 @@ for key, val in {
     "total_points": 2500, "calendar_events": [], "menu_data": [], 
     "last_menu_text": "", "fav_menu": "", 
     "bp_max": 103.5, "sq_max": 168.8, "dl_max": 150.0, 
-    "routine_count": 0, "file_content_cache": FEB_ARCHIVE
+    "routine_count": 0, "file_content_cache": "2月実績：BP 103.5 / SQ 168.8 / Chining 112.5"
 }.items():
     if key not in st.session_state: st.session_state[key] = val
 
@@ -74,65 +74,40 @@ r_info = CYCLE_CONFIG[current_cycle_step]
 # --- 4. UI表示 ---
 with st.sidebar:
     st.markdown(f'## 🛠️ UNIT STATUS')
-    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> CYCLE: {current_cycle_step}/6</p><p class="log-line">> TARGET: BIG3 READY</p></div></div>''', unsafe_allow_html=True)
+    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> CYCLE: {current_cycle_step}/6</p></div></div>''', unsafe_allow_html=True)
     st.progress(current_cycle_step / 6)
-    st.write(f"BP: {st.session_state.bp_max}kg | SQ: {st.session_state.sq_max}kg")
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# 1. 生成セクション (ここを拡張)
-mode = st.radio("本日のフォーカス種目", ["ベンチプレス", "スクワット", "デッドリフト", "その他(筋肥大など)"], horizontal=True)
-parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=["胸"] if mode=="ベンチプレス" else ["足"] if mode=="スクワット" else ["背中"])
+# 1. 生成セクション
+mode = st.radio("フォーカス種目", ["ベンチプレス", "スクワット", "デッドリフト", "その他"], horizontal=True)
+parts = st.multiselect("対象部位", list(POPULAR_DICT.keys()), default=["胸"] if mode=="ベンチプレス" else ["足"])
 
 if st.button("AIメニュー生成 (INITIATE)", type="primary"):
-    # フォーカス種目に応じた1RMと名前を選択
-    if mode == "ベンチプレス":
-        target_max = st.session_state.bp_max
-        main_exercise = "ベンチプレス"
-    elif mode == "スクワット":
-        target_max = st.session_state.sq_max
-        main_exercise = "スクワット"
-    elif mode == "デッドリフト":
-        target_max = st.session_state.dl_max
-        main_exercise = "デッドリフト"
-    else:
-        target_max = 0
-        main_exercise = ""
-
-    target_w = round(target_max * r_info["pct"], 1) if target_max > 0 else "適正"
+    target_max = st.session_state.bp_max if mode=="ベンチプレス" else st.session_state.sq_max if mode=="スクワット" else st.session_state.dl_max
+    target_w = round(target_max * r_info["pct"], 1)
     
-    # プロンプトの構築
-    main_instr = f"【{mode}の日指定】メイン種目『{main_exercise}』を【{target_w}kg】({r_info['sets']}セット){r_info['reps']}回で必ず1種目目に設定。" if main_exercise else ""
-    
-    prompt = f"""
-    実績データ：{st.session_state.file_content_cache}
-    {main_instr}
-    部位: {parts}, 目的: {mode}強化。
-    筋トレMEMOの人気種目を参考に、残りのメニューを構成。
-    形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
-    """
-    
+    prompt = f"実績:{st.session_state.file_content_cache} メイン:『{mode}』{target_w}kg,{r_info['sets']}set,{r_info['reps']}rep。部位:{parts} 形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         st.session_state.last_menu_text = response.text
     except:
-        st.session_state.last_menu_text = f"『{main_exercise}』 【{target_w}kg】 ({r_info['sets']}セット) {r_info['reps']}回 [3分]"
-    
+        st.session_state.last_menu_text = f"『{mode}』 【{target_w}kg】 ({r_info['sets']}セット) {r_info['reps']}回 [3分]"
     st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
-# 2. 記録エリア
+# 2. 記録 ＆ 部位別追加エリア
 if st.session_state.menu_data:
-    st.info(f"第 {current_cycle_step} 回ルーティン：{mode}強化モード")
-    
-    # 種目追加
-    with st.expander("➕ 種目を手動で追加"):
-        c_add1, c_add2 = st.columns([3, 1])
-        new_name = c_add1.text_input("追加する種目名")
-        if c_add2.button("追加"):
-            if new_name:
-                st.session_state.menu_data.append({"name": new_name, "w_def": 0.0, "r_def": 10, "sets": 3, "rest": "2分"})
-                st.rerun()
+    # --- 【強化】部位別スクロール（タブ）選択 ---
+    with st.expander("➕ 部位から種目を選んで追加"):
+        tabs = st.tabs(list(POPULAR_DICT.keys()))
+        for i, (part_name, exercises) in enumerate(POPULAR_DICT.items()):
+            with tabs[i]:
+                selected_ex = st.selectbox(f"{part_name}の王道種目", ["-- 選択してください --"] + exercises, key=f"sel_{part_name}")
+                if st.button(f"{selected_ex} を追加", key=f"btn_{part_name}"):
+                    if selected_ex != "-- 選択してください --":
+                        st.session_state.menu_data.append({"name": selected_ex, "w_def": 0.0, "r_def": 10, "sets": 3, "rest": "2分"})
+                        st.rerun()
 
     current_logs = []
     for idx, item in enumerate(st.session_state.menu_data):
@@ -153,24 +128,15 @@ if st.session_state.menu_data:
         st.markdown('</div>', unsafe_allow_html=True)
 
     if st.button("ミッション完了！ (FINISH)", type="primary"):
-        # メイン種目（BP, SQ, DL）のいずれかがあればカウントアップ
-        if any(x in [log["name"] for log in current_logs] for x in ["ベンチプレス", "スクワット", "デッドリフト"]):
-            st.session_state.routine_count += 1
-        st.session_state.calendar_events.append(f"{datetime.now().strftime('%m/%d')} : {mode} Step{current_cycle_step}")
+        st.session_state.routine_count += 1
+        st.session_state.calendar_events.append(f"{datetime.now().strftime('%m/%d')} : {mode}完了")
         st.balloons(); st.session_state.menu_data = []; st.rerun()
 
-# 3. メンテナンスエリア
+# 3. メンテナンス
 st.markdown('<div class="footer-spacer"></div>')
-st.markdown("### ⚙️ SETTINGS & ARCHIVE")
-with st.expander("📅 トレーニング履歴"):
-    for ev in reversed(st.session_state.calendar_events): st.write(f"✅ {ev}")
-with st.expander("👤 1RM / プログラム手動調整"):
+with st.expander("📅 履歴 / 👤 1RM / 🧠 学習"):
     c1, c2, c3 = st.columns(3)
-    st.session_state.bp_max = c1.number_input("Bench Press 1RM", value=st.session_state.bp_max)
-    st.session_state.sq_max = c2.number_input("Squat 1RM", value=st.session_state.sq_max)
-    st.session_state.dl_max = c3.number_input("Deadlift 1RM", value=st.session_state.dl_max)
-    st.session_state.routine_count = st.number_input("現在のサイクル位置(0-5)", value=st.session_state.routine_count)
-with st.expander("🧠 AI学習・こだわり設定"):
-    st.write("2月学習済みデータ:")
-    st.code(st.session_state.file_content_cache)
-    st.session_state.fav_menu = st.text_area("こだわり", value=st.session_state.fav_menu)
+    st.session_state.bp_max = c1.number_input("BP MAX", value=st.session_state.bp_max)
+    st.session_state.sq_max = c2.number_input("SQ MAX", value=st.session_state.sq_max)
+    st.session_state.dl_max = c3.number_input("DL MAX", value=st.session_state.dl_max)
+    for ev in reversed(st.session_state.calendar_events): st.write(f"✅ {ev}")
