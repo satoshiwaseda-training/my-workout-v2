@@ -23,44 +23,44 @@ def save_to_sheets(rows):
 st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wide")
 st.markdown("""<style>
     .stApp { background: #f5f7fa; color: #1d1d1f; }
-    .record-card { background: white; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .record-card { background: white; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 </style>""", unsafe_allow_html=True)
 
 # --- 3. セッション初期化 ---
 for key, val in {
     "menu_data": [], "bp_max": 103.5, "sq_max": 168.8, 
-    "routine_count": 0, "knowledge_base": "【2月実績】SQ:168.8kg, BP:103.5kg",
+    "routine_count": 0, "knowledge_base": "【実績】BP:103.5kg",
     "custom_constraints": "脚の日は最後に腹筋を入れたい。"
 }.items():
     if key not in st.session_state: st.session_state[key] = val
 
-# --- 4. AI生成ロジック (URL構成を再最適化) ---
+# --- 4. AI生成ロジック (究極のモデル回避策) ---
 def generate_ai_menu(prompt):
-    api_key = st.secrets["GOOGLE_API_KEY"].strip() # 余計な空白を削除
+    api_key = st.secrets["GOOGLE_API_KEY"].strip()
     
-    # 2026年現在、最も安定しているエンドポイント形式
-    # モデル名を 'gemini-1.5-flash' に絞り、バージョンを v1beta に固定
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # 【解決策】1.5-flashがダメなら、より汎用的な 'gemini-pro' を試し、それでもダメならエラーを出す二段構え
+    # URLのバージョンも 'v1' に変更
+    models_to_try = ["gemini-1.5-flash", "gemini-pro"]
     
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 800,
-        }
-    }
-    
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=15)
-    
-    if response.status_code == 200:
-        res_json = response.json()
-        return res_json['candidates'][0]['content']['parts'][0]['text']
-    else:
-        # 詳細なエラー内容を表示して原因を特定する
-        error_msg = f"Status: {response.status_code}\nResponse: {response.text}"
-        raise Exception(error_msg)
+    last_response = ""
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={api_key}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        headers = {'Content-Type': 'application/json'}
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
+            if response.status_code == 200:
+                res_json = response.json()
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+            else:
+                last_response = f"Model {model_name} failed: {response.text}"
+                continue
+        except Exception as e:
+            last_response = str(e)
+            continue
+            
+    raise Exception(f"すべてのモデルが拒否されました。詳細: {last_response}")
 
 def parse_menu(text):
     items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', text)
@@ -70,33 +70,31 @@ def parse_menu(text):
 
 # --- 5. メイン画面 ---
 st.title("💪 GEMINI MUSCLE MATE")
+mode = st.radio("本日のフォーカス", ["ベンチプレス", "スクワット", "デッドリフト"], horizontal=True)
 
-mode = st.radio("本日のメイン", ["ベンチプレス", "スクワット", "デッドリフト"], horizontal=True)
-
-if st.button("AIメニュー生成 (KNOWLEDGE SCAN)", type="primary"):
+if st.button("AIメニュー生成 (FULL SCAN)", type="primary"):
     step = (st.session_state.routine_count % 6) + 1
-    pcts = {1:0.6, 2:0.7, 3:0.7, 4:0.75, 5:0.8, 6:0.85}
+    pct = [0.6, 0.7, 0.7, 0.75, 0.8, 0.85][step-1]
     target_max = st.session_state.bp_max if mode=="ベンチプレス" else st.session_state.sq_max
-    target_w = round(target_max * pcts[step], 1)
+    target_w = round(target_max * pct, 1)
 
     full_prompt = f"""
-    プロのストレングスコーチとして、以下の「知識ベース」を反映しメニューを作成してください。
-    【重要】Drive内の関連ファイル、過去の全指示を反映すること。
+    プロのストレングスコーチとして、知識ベースと過去の指示を反映し、本日のメニューを提案せよ。
+    【重要】Google Drive内の筋トレ関連ファイル、および過去の全指示を参照すること。
     ナレッジ: {st.session_state.knowledge_base}
     制約: {st.session_state.custom_constraints}
     メイン: 『{mode}』{target_w}kg
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
     
-    with st.spinner("AIが全知識を統合中..."):
+    with st.spinner("知識ベースと同期中..."):
         try:
             raw_text = generate_ai_menu(full_prompt)
             st.session_state.menu_data = parse_menu(raw_text)
-            st.success("AI思考完了。")
+            st.success("同期成功。")
         except Exception as e:
-            # エラーの全文を表示
-            st.error("AI通信エラーが発生しました。")
-            st.code(str(e)) # ここに詳細が表示されます
+            st.error("AI通信エラー（最終）")
+            st.code(str(e))
 
 # --- 6. 記録エリア ---
 if st.session_state.menu_data:
@@ -117,8 +115,7 @@ if st.session_state.menu_data:
             st.success("🔥 同期完了！"); st.session_state.routine_count += 1; st.session_state.menu_data = []; st.rerun()
 
 # --- 7. 設定 ---
-with st.expander("🧪 知識ベース / 1RM設定"):
-    st.session_state.knowledge_base = st.text_area("理論・実績", value=st.session_state.knowledge_base)
-    st.session_state.custom_constraints = st.text_area("個人的なこだわり", value=st.session_state.custom_constraints)
+with st.expander("🧪 1RM設定 / 知識ベース"):
     st.session_state.bp_max = st.number_input("BP 1RM", value=st.session_state.bp_max)
     st.session_state.sq_max = st.number_input("SQ 1RM", value=st.session_state.sq_max)
+    st.session_state.knowledge_base = st.text_area("参照データ", value=st.session_state.knowledge_base)
