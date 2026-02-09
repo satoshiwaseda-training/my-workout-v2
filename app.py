@@ -30,44 +30,40 @@ st.markdown("""
     .log-line { color: #00ff41 !important; font-size: 0.8rem !important; margin: 0 !important; }
     .record-card { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .footer-spacer { margin-top: 100px; margin-bottom: 50px; border-top: 2px solid rgba(0,0,0,0.1); }
-    .ai-badge { background: #007aff; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. データ定義 ---
 POPULAR_DICT = {
-    "胸": ["ベンチプレス", "ダンベルフライ", "チェストプレス", "ペクトラルフライ", "インクラインDBプレス"],
-    "背中": ["チンニング(懸垂)", "ラットプルダウン", "ベントオーバーロー", "シーテッドロー", "デッドリフト"],
-    "足": ["スクワット", "レッグプレス", "レッグエクステンション", "ハックSQ", "V-SQ"],
-    "肩": ["サイドレイズ", "ショルダープレス", "リアレイズ", "アップライトロー"],
-    "腕": ["アームカール", "インクラインカール", "ナロープレス", "プレスダウン"],
-    "腹筋": ["アブドミナル", "アブローラー", "レッグレイズ"]
+    "胸": ["ベンチプレス", "ダンベルフライ", "チェストプレス"],
+    "背中": ["チンニング(懸垂)", "ラットプルダウン", "デッドリフト"],
+    "足": ["スクワット", "レッグプレス", "ハックSQ"],
+    "肩": ["サイドレイズ", "ショルダープレス"],
+    "腕": ["アームカール", "プレスダウン"],
+    "腹筋": ["アブドミナル", "レッグレイズ"]
 }
 CYCLE_CONFIG = {
-    1: {"pct": 0.60, "reps": 8, "sets": 4, "msg": "導入期。"},
-    2: {"pct": 0.70, "reps": 8, "sets": 5, "msg": "ボリューム期。"},
-    3: {"pct": 0.70, "reps": 7, "sets": 5, "msg": "中盤戦。"},
-    4: {"pct": 0.75, "reps": 6, "sets": 4, "msg": "調整期。"},
-    5: {"pct": 0.80, "reps": 5, "sets": 4, "msg": "高重量期！"},
-    6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "限界突破！"},
+    1: {"pct": 0.60, "reps": 8, "sets": 4},
+    2: {"pct": 0.70, "reps": 8, "sets": 5},
+    3: {"pct": 0.70, "reps": 7, "sets": 5},
+    4: {"pct": 0.75, "reps": 6, "sets": 4},
+    5: {"pct": 0.80, "reps": 5, "sets": 4},
+    6: {"pct": 0.85, "reps": 3, "sets": 4},
 }
 
 # --- 4. セッション初期化 ---
 if "GOOGLE_API_KEY" in st.secrets:
-    # 修正: APIバージョンを明示的に "v1" に指定
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"], transport='rest')
+    # 修正：最新のAPIエンドポイントを使用するように設定
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 for key, val in {
-    "menu_data": [], "last_menu_text": "", "ai_active": False,
+    "menu_data": [], "ai_active": False,
     "bp_max": 103.5, "sq_max": 168.8, "dl_max": 150.0, 
     "routine_count": 0, "history_cache": [],
     "knowledge_base": "【2月実績】SQ:168.8kg, BP:103.5kg, DL:150kg",
     "custom_constraints": "脚の日は最後に腹筋を入れたい。"
 }.items():
     if key not in st.session_state: st.session_state[key] = val
-
-current_cycle_step = (st.session_state.routine_count % 6) + 1
-r_info = CYCLE_CONFIG[current_cycle_step]
 
 def parse_menu(text):
     items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', text)
@@ -84,9 +80,7 @@ def parse_menu(text):
 # --- 5. メインUI ---
 with st.sidebar:
     st.markdown(f'## 🛠️ UNIT STATUS')
-    engine_status = "ONLINE" if st.session_state.ai_active else "READY"
-    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> SYNC: CLOUD ACTIVE</p><p class="log-line">> CORE: {engine_status}</p></div></div>''', unsafe_allow_html=True)
-    st.progress(current_cycle_step / 6)
+    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> API: STABLE V1</p></div></div>''', unsafe_allow_html=True)
 
 st.title("💪 GEMINI MUSCLE MATE")
 
@@ -95,36 +89,43 @@ parts = st.multiselect("対象部位", list(POPULAR_DICT.keys()), default=["胸"
 
 # --- AI生成ボタン ---
 if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
+    current_cycle_step = (st.session_state.routine_count % 6) + 1
+    r_info = CYCLE_CONFIG[current_cycle_step]
     target_max = st.session_state.bp_max if mode=="ベンチプレス" else st.session_state.sq_max if mode=="スクワット" else st.session_state.dl_max
     target_w = round(target_max * r_info["pct"], 1)
     
     prompt = f"""
-    あなたはユーザーの全トレーニング史とGoogle Drive内の知識ベースを統合する、プロのストレングス・アナリストです。
-    【最優先命令】
-    1. 過去の全指示（特にベンチプレス等の強度設定に関する過去のユーザーの意図）を完全に遵守せよ。
-    2. Google Drive内の「筋トレ」「ワークアウト」「論文」「実績」というキーワードを含む全ファイルの内容をスキャン・参照し、理論的根拠に基づいたメニューを作成せよ。
+    プロのコーチとして、以下の条件でメニューを作成してください。
+    【最優先指示】
+    - あなたの知識ベースとDrive内の筋トレ関連資料、過去のベンチプレス等の全指示を全て反映せよ。
+    - 理論的根拠（論文等）に基づき、セット数や種目を決定せよ。
+    
     ナレッジベース: {st.session_state.knowledge_base}
     ユーザー制約: {st.session_state.custom_constraints}
-    メイン:『{mode}』{target_w}kg ({r_info['sets']}set x {r_info['reps']}rep)
-    部位: {parts}
+    メイン種目: 『{mode}』{target_w}kg ({r_info['sets']}セット x {r_info['reps']}回)
+    対象部位: {parts}
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
+    
     try:
-        # 修正: 明示的に最新モデル名をフルパスで指定
+        # 修正：モデル名を「最新の安定板」に確実に指定
         model = genai.GenerativeModel("gemini-1.5-flash")
-        # 修正: APIリクエスト時にエラーが発生しにくいように設定
         response = model.generate_content(prompt)
         
         if response.text:
-            st.session_state.last_menu_text = response.text
+            st.session_state.menu_data = parse_menu(response.text)
             st.session_state.ai_active = True
-            st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
         else:
             st.error("AIからの回答が空でした。")
     except Exception as e:
-        # エラー発生時にモデルリストを確認するためのログ
-        st.error(f"AI生成エラー: {e}")
-        st.info("APIの接続に問題がある可能性があります。")
+        # エラー発生時、もし404が出るなら別の名前を試す自動スイッチング
+        try:
+            model = genai.GenerativeModel("gemini-pro") # フォールバック
+            response = model.generate_content(prompt)
+            st.session_state.menu_data = parse_menu(response.text)
+            st.session_state.ai_active = True
+        except:
+            st.error(f"AI生成エラー: {e}")
 
 # --- 記録表示エリア ---
 if st.session_state.menu_data:
@@ -148,25 +149,19 @@ if st.session_state.menu_data:
 
     if st.button("ミッション完了！ (FINISH & SYNC)", type="primary"):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
-        rows = []
-        for log in current_logs:
-            for i, s in enumerate(log['sets']):
-                rows.append([timestamp, log['name'], i+1, s['w'], s['r']])
+        rows = [[timestamp, log['name'], i+1, s['w'], s['r']] for log in current_logs for i, s in enumerate(log['sets'])]
         if save_to_sheets(rows):
-            st.success("🔥 クラウド同期完了！")
+            st.success("🔥 同期完了！")
             st.session_state.routine_count += 1
             st.session_state.history_cache.append(f"{timestamp} : {mode}完了")
             st.balloons(); st.session_state.menu_data = []; st.rerun()
 
 # --- メンテナンスエリア ---
 st.markdown('<div class="footer-spacer"></div>', unsafe_allow_html=True)
-with st.expander("📅 履歴 / 👤 1RM"):
+with st.expander("🧪 知識ベース / 👤 1RM"):
     c1, c2, c3 = st.columns(3)
     st.session_state.bp_max = c1.number_input("BP MAX", value=st.session_state.bp_max)
     st.session_state.sq_max = c2.number_input("SQ MAX", value=st.session_state.sq_max)
     st.session_state.dl_max = c3.number_input("DL MAX", value=st.session_state.dl_max)
-    for ev in reversed(st.session_state.history_cache): st.write(f"✅ {ev}")
-
-with st.expander("🧪 知識ベース（AIがDrive全域をスキャンします）"):
-    st.session_state.knowledge_base = st.text_area("理論・論文・実績", value=st.session_state.knowledge_base, height=150)
-    st.session_state.custom_constraints = st.text_area("こだわり・制約", value=st.session_state.custom_constraints, height=100)
+    st.session_state.knowledge_base = st.text_area("理論・論文・実績", value=st.session_state.knowledge_base, height=100)
+    st.session_state.custom_constraints = st.text_area("こだわり・制約", value=st.session_state.custom_constraints, height=50)
