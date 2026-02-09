@@ -34,8 +34,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 2月データ ＆ ルーティン定義 ---
-FEB_ARCHIVE = "2月実績: SQ 168.8kg, BP 103.5kg, Chining 112.5kg"
+# --- 3. データ ＆ 定義 ---
 POPULAR_DICT = {
     "胸": ["ベンチプレス", "ダンベルフライ", "チェストプレス", "ペクトラルフライ", "インクラインDBプレス"],
     "背中": ["チンニング(懸垂)", "ラットプルダウン", "ベントオーバーロー", "シーテッドロー", "デッドリフト"],
@@ -53,13 +52,15 @@ CYCLE_CONFIG = {
     6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "限界突破の準備はいいか？"},
 }
 
-# --- 4. ロジック ＆ セッション初期化 ---
+# --- 4. セッション初期化 ---
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 for key, val in {
     "menu_data": [], "last_menu_text": "", "ai_active": False,
     "bp_max": 103.5, "sq_max": 168.8, "dl_max": 150.0, 
-    "routine_count": 0, "history_cache": []
+    "routine_count": 0, "history_cache": [],
+    "file_content_cache": "2月実績: SQ 168.8kg, BP 103.5kg, Chining 112.5kg",
+    "fav_menu": "脚の日は最後に腹筋を入れたい"
 }.items():
     if key not in st.session_state: st.session_state[key] = val
 
@@ -84,6 +85,7 @@ with st.sidebar:
     engine_status = "ONLINE" if st.session_state.ai_active else "READY"
     st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> SYNC: CLOUD ACTIVE</p><p class="log-line">> CORE: {engine_status}</p></div></div>''', unsafe_allow_html=True)
     st.progress(current_cycle_step / 6)
+    st.write(f"SQ: {st.session_state.sq_max}kg | BP: {st.session_state.bp_max}kg")
 
 st.title("💪 GEMINI MUSCLE MATE")
 
@@ -93,7 +95,14 @@ parts = st.multiselect("対象部位", list(POPULAR_DICT.keys()), default=["胸"
 if st.button("AIメニュー生成 (INITIATE)", type="primary"):
     target_max = st.session_state.bp_max if mode=="ベンチプレス" else st.session_state.sq_max if mode=="スクワット" else st.session_state.dl_max
     target_w = round(target_max * r_info["pct"], 1)
-    prompt = f"実績:{FEB_ARCHIVE} メイン:『{mode}』{target_w}kg,{r_info['sets']}set,{r_info['reps']}rep。部位:{parts} 形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]"
+    # 学習データとこだわり設定をプロンプトに統合
+    prompt = f"""
+    実績データ:{st.session_state.file_content_cache}
+    ユーザーのこだわり:{st.session_state.fav_menu}
+    本日のメイン:『{mode}』{target_w}kg,{r_info['sets']}set,{r_info['reps']}rep。
+    対象部位:{parts} 
+    形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
+    """
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
@@ -104,9 +113,10 @@ if st.button("AIメニュー生成 (INITIATE)", type="primary"):
         st.session_state.ai_active = False
     st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
+# 記録エリア
 if st.session_state.menu_data:
     if st.session_state.ai_active:
-        st.markdown('✨ <span class="ai-badge">AI GENERATED</span> スプレッドシート同期準備完了', unsafe_allow_html=True)
+        st.markdown('✨ <span class="ai-badge">AI GENERATED</span> 学習データに基づき構成', unsafe_allow_html=True)
 
     with st.expander("➕ 部位から種目を選んで追加"):
         tabs = st.tabs(list(POPULAR_DICT.keys()))
@@ -144,22 +154,30 @@ if st.session_state.menu_data:
                 rows.append([timestamp, log['name'], i+1, s['w'], s['r']])
         
         if save_to_sheets(rows):
-            st.success("🔥 スプレッドシートへの永続同期に成功しました！")
+            st.success("🔥 スプレッドシートへ同期しました！")
             st.session_state.routine_count += 1
             st.session_state.history_cache.append(f"{timestamp} : {mode}完了")
             st.balloons()
             st.session_state.menu_data = []
             st.rerun()
 
-# --- 6. メンテナンスエリア ---
+# --- 6. メンテナンスエリア（ここを復活・強化） ---
 st.markdown('<div class="footer-spacer"></div>', unsafe_allow_html=True)
 st.markdown("### ⚙️ SETTINGS & ARCHIVE")
+
 with st.expander("📅 直近の同期履歴"):
+    if not st.session_state.history_cache: st.write("同期待ちのデータはありません。")
     for ev in reversed(st.session_state.history_cache): st.write(f"✅ {ev}")
-    st.info("※すべての詳細データはGoogleスプレッドシートを確認してください。")
 
 with st.expander("👤 1RM / プログラム調整"):
     c1, c2, c3 = st.columns(3)
-    st.session_state.bp_max = c1.number_input("BP MAX", value=st.session_state.bp_max)
-    st.session_state.sq_max = c2.number_input("SQ MAX", value=st.session_state.sq_max)
-    st.session_state.dl_max = c3.number_input("DL MAX", value=st.session_state.dl_max)
+    st.session_state.bp_max = c1.number_input("Bench Press MAX", value=st.session_state.bp_max)
+    st.session_state.sq_max = c2.number_input("Squat MAX", value=st.session_state.sq_max)
+    st.session_state.dl_max = c3.number_input("Deadlift MAX", value=st.session_state.dl_max)
+    st.session_state.routine_count = st.number_input("サイクル進捗(累計数)", value=st.session_state.routine_count)
+
+with st.expander("🧠 AI学習・こだわり設定（重要）"):
+    st.write("AIが参照するあなたの「実績」と「こだわり」です。")
+    st.session_state.file_content_cache = st.text_area("実績データ（2月の記録など）", value=st.session_state.file_content_cache, height=100)
+    st.session_state.fav_menu = st.text_area("こだわり条件（AIへの指示）", value=st.session_state.fav_menu, height=100)
+    st.info("※ここに書いた内容が「AIメニュー生成」のアルゴリズムに直接反映されます。")
