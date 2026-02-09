@@ -4,13 +4,15 @@ import re
 import pandas as pd
 from datetime import datetime
 
-# --- 1. 基本設定 ＆ デザイン ---
+# --- 1. 基本設定 ＆ デザイン（余白バグ修正） ---
 st.set_page_config(page_title="GEMINI MUSCLE MATE", page_icon="💪", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: #050505 !important; border-right: 2px solid #007aff; }
+    
+    /* サイドバー開閉ボタンの白化 */
     button[aria-label="Close sidebar"] svg, button[aria-label="Open sidebar"] svg {
         fill: #ffffff !important; color: #ffffff !important;
         filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
@@ -18,15 +20,22 @@ st.markdown("""
     button[aria-label="Close sidebar"], button[aria-label="Open sidebar"] {
         background-color: #007aff !important; border-radius: 50% !important; border: 1px solid white !important;
     }
+    
     [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] h2 { color: #ffffff !important; }
+    
     .fairy-card { background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%); border-radius: 20px; padding: 25px 15px; text-align: center; border: 1px solid rgba(0,122,255,0.3); margin: 10px 0; }
     .char-glow { font-size: 80px; filter: drop-shadow(0 0 20px rgba(255,255,255,0.4)); display: block; }
     .system-log { background: #111; padding: 10px; border-radius: 8px; border-left: 3px solid #00ff41; font-family: 'Consolas', monospace; text-align: left; }
     .log-line { color: #00ff41 !important; font-size: 0.8rem !important; margin: 0 !important; }
-    .record-card { background-color: #ffffff; padding: 15px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .stButton > button { width: 100%; height: 45px; border-radius: 8px; font-weight: bold !important; }
-    .main-btn > div > button { height: 60px !important; background: linear-gradient(90deg, #007aff, #00c6ff) !important; color: white !important; font-size: 1.2rem !important; }
-    .rpm-badge { background-color: #ff3b30; color: white !important; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; }
+    
+    /* 記録カードのデザイン */
+    .record-card { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    
+    /* メインボタン */
+    .stButton > button { width: 100%; height: 50px; border-radius: 8px; font-weight: bold !important; }
+    
+    /* メンテナンスエリア用の大きな余白 */
+    .footer-spacer { margin-top: 150px; border-top: 1px solid #ccc; padding-top: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -56,15 +65,18 @@ def parse_menu(text):
 
 # API & セッション初期化
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-init_data = {
+for key, val in {
     "total_points": 0, "history_log": {}, "calendar_events": [], 
     "menu_data": [], "last_menu_text": "", "fav_menu": "", 
     "bp_max": 115.0, "sq_max": 160.0, "dl_max": 140.0, "file_content_cache": ""
-}
-for key, val in init_data.items():
+}.items():
     if key not in st.session_state: st.session_state[key] = val
 
-f_name, f_emoji, f_status = (lambda p: ("PROTO-TYPE", "🥚", "ANALYZING...") if p < 300 else ("MUSCLE-V1", "🐣", "ACTIVE") if p < 1500 else ("GOD-MODE", "🔱", "ULTIMATE"))(st.session_state.total_points)
+def get_fairy_info(pts):
+    if pts < 300: return "PROTO-TYPE", "🥚", "ANALYZING..."
+    if pts < 1500: return "MUSCLE-V1", "🐣", "ACTIVE"
+    return "GOD-MODE", "🔱", "ULTIMATE"
+f_name, f_emoji, f_status = get_fairy_info(st.session_state.total_points)
 
 # --- 3. UI表示 ---
 with st.sidebar:
@@ -74,7 +86,7 @@ with st.sidebar:
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# 1. トレーニング生成
+# 1. トレーニング生成セクション
 with st.container():
     goal = st.selectbox("トレーニング目的", ["ベンチプレスを強化", "スクワットを強化", "デッドリフトを強化", "筋力向上", "筋肥大"])
     
@@ -86,14 +98,13 @@ with st.container():
     
     parts = st.multiselect("対象部位", ["胸", "背中", "足", "肩", "腕", "腹筋"], default=default_parts)
 
-    st.markdown('<div class="main-btn">', unsafe_allow_html=True)
-    if st.button("AIメニュー生成 (INITIATE)"):
+    if st.button("AIメニュー生成 (INITIATE)", type="primary"):
         try:
             model = genai.GenerativeModel(get_best_model())
-            prompt = f"""最高のストレングスコーチとしてメニュー作成。科学的根拠を重視しつつ、以下をベースに。
-            - 背中の日: 懸垂, ラットプルダウン, ベントオーバーロー
-            - 胸の日: ベンチプレス, ナロープレス, ケーブルプレス
-            - 脚の日: スクワット, ブルガリアンスクワット
+            prompt = f"""最高のストレングスコーチとしてメニュー作成。科学的根拠を重視しつつ、以下を優先的に。
+            - 背中: 懸垂, ラットプルダウン, ベントオーバーロー
+            - 胸: ベンチプレス, ナロープレス, ケーブルプレス
+            - 脚: スクワット, ブルガリアンスクワット
             【こだわり】{st.session_state.fav_menu}
             【学習データ】{st.session_state.file_content_cache}
             1RM: SQ{st.session_state.sq_max}, BP{st.session_state.bp_max}, DL{st.session_state.dl_max}
@@ -104,15 +115,13 @@ with st.container():
             st.session_state.last_menu_text = response.text
             st.session_state.menu_data = parse_menu(response.text)
         except:
-            st.warning("⚠️ AI休憩中：バックアップ")
+            st.warning("⚠️ AI休憩中：バックアップメニュー")
             st.session_state.menu_data = [{"name": "ベンチプレス", "w_def": 90.0, "r_def": 8, "sets": 3, "rest": "3分", "is_compound": True}]
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # 2. メニュー表示 & 編集 & 記録
 if st.session_state.menu_data:
     st.info(st.session_state.last_menu_text)
     
-    # --- 【新規】種目追加機能 ---
     with st.expander("➕ 種目を手動で追加"):
         new_name = st.text_input("追加する種目名")
         if st.button("リストに加える"):
@@ -125,7 +134,7 @@ if st.session_state.menu_data:
         col_title, col_ctrl = st.columns([3, 1])
         col_title.markdown(f"### {item['name']}")
         
-        # --- 【新規】セット数の増減機能 ---
+        # セット数の変更
         new_sets = col_ctrl.number_input("セット数", 1, 10, item['sets'], key=f"sets_num_{idx}")
         st.session_state.menu_data[idx]['sets'] = new_sets
         
@@ -137,6 +146,7 @@ if st.session_state.menu_data:
             rpm = calculate_1rm(w, r)
             c3.write(f"1RM: {rpm}kg")
             sets_results.append({"w": w, "r": r, "rpm": rpm})
+        
         current_logs.append({"name": item['name'], "sets": sets_results, "is_compound": item['is_compound']})
         
         if st.button(f"🗑️ {item['name']} を削除", key=f"del_{idx}"):
@@ -144,19 +154,22 @@ if st.session_state.menu_data:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("ミッション完了！ (FINISH)"):
+    if st.button("ミッション完了！ (FINISH)", type="primary"):
         pts = 0
         for log in current_logs:
             m_rpm = max([s['rpm'] for s in log['sets']]) if log['sets'] else 0
-            if m_rpm > st.session_state.history_log.get(log['name'], 0): st.session_state.history_log[log['name']] = m_rpm
+            if m_rpm > st.session_state.history_log.get(log['name'], 0): 
+                st.session_state.history_log[log['name']] = m_rpm
             pts += int(sum([s['w'] * s['r'] for s in log['sets']]) * (2.0 if log['is_compound'] else 1.0) / 100)
         st.session_state.total_points += pts
         st.session_state.calendar_events.append(f"{datetime.now().strftime('%Y/%m/%d')} : {pts}pt")
         st.balloons()
-        st.session_state.menu_data = [] # 完了後はリセット
+        st.session_state.menu_data = [] # 完了後リセット
 
-# 3. メンテナンスエリア
-st.markdown("<br><br>---")
+# 3. メンテナンスエリア（CSSで大きな余白を確保）
+st.markdown('<div class="footer-spacer"></div>', unsafe_allow_html=True)
+st.markdown("### ⚙️ SETTINGS & ARCHIVE")
+
 with st.expander("📅 トレーニング履歴"):
     for ev in reversed(st.session_state.calendar_events): st.write(f"✅ {ev}")
 
@@ -167,12 +180,12 @@ with st.expander("👤 1RMデータ設定"):
     st.session_state.dl_max = c3.number_input("Deadlift 1RM", value=st.session_state.dl_max)
 
 with st.expander("🧠 AI学習・こだわり設定"):
-    up_file = st.file_uploader("ファイル学習", type=["xlsx", "pdf", "csv", "txt"])
+    up_file = st.file_uploader("ファイルをアップロードして学習", type=["xlsx", "pdf", "csv", "txt"])
     if up_file:
         try:
             if up_file.name.endswith('.xlsx'): content = pd.read_excel(up_file).to_string()
             else: content = up_file.read().decode('utf-8')
             st.session_state.file_content_cache = content
-            st.success("学習完了")
-        except: st.error("エラー")
-    st.session_state.fav_menu = st.text_area("こだわり入力", value=st.session_state.fav_menu)
+            st.success("✅ 学習完了")
+        except: st.error("ファイルの読み取りエラー")
+    st.session_state.fav_menu = st.text_area("テキストでのこだわり", value=st.session_state.fav_menu)
