@@ -114,9 +114,14 @@ if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
     
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+   try:
+        # モデル名の指定を修正（models/ を抜いた名前にし、最新版を指定）
+        model = genai.GenerativeModel("gemini-1.5-flash") 
         response = model.generate_content(prompt)
+        
+        # もし上記でもダメな場合は、こちらを試してください：
+        # model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        
         st.session_state.last_menu_text = response.text
         st.session_state.ai_active = True
         st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
@@ -167,3 +172,4 @@ with st.expander("📅 履歴 / 👤 1RM"):
 with st.expander("🧪 知識ベース（AIがDrive全域をスキャンします）"):
     st.session_state.knowledge_base = st.text_area("理論・論文・実績", value=st.session_state.knowledge_base, height=150)
     st.session_state.custom_constraints = st.text_area("こだわり・制約", value=st.session_state.custom_constraints, height=100)
+
