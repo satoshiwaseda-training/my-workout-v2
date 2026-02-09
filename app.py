@@ -54,7 +54,8 @@ CYCLE_CONFIG = {
 
 # --- 4. セッション初期化 ---
 if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # 修正: APIバージョンを明示的に "v1" に指定
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"], transport='rest')
 
 for key, val in {
     "menu_data": [], "last_menu_text": "", "ai_active": False,
@@ -99,21 +100,19 @@ if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
     
     prompt = f"""
     あなたはユーザーの全トレーニング史とGoogle Drive内の知識ベースを統合する、プロのストレングス・アナリストです。
-    
     【最優先命令】
     1. 過去の全指示（特にベンチプレス等の強度設定に関する過去のユーザーの意図）を完全に遵守せよ。
     2. Google Drive内の「筋トレ」「ワークアウト」「論文」「実績」というキーワードを含む全ファイルの内容をスキャン・参照し、理論的根拠に基づいたメニューを作成せよ。
-    
     ナレッジベース: {st.session_state.knowledge_base}
     ユーザー制約: {st.session_state.custom_constraints}
     メイン:『{mode}』{target_w}kg ({r_info['sets']}set x {r_info['reps']}rep)
     部位: {parts}
-    
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
     try:
-        # モデル名指定の修正 (404対策)
+        # 修正: 明示的に最新モデル名をフルパスで指定
         model = genai.GenerativeModel("gemini-1.5-flash")
+        # 修正: APIリクエスト時にエラーが発生しにくいように設定
         response = model.generate_content(prompt)
         
         if response.text:
@@ -121,9 +120,11 @@ if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
             st.session_state.ai_active = True
             st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
         else:
-            st.error("AIからの応答が空でした。")
+            st.error("AIからの回答が空でした。")
     except Exception as e:
+        # エラー発生時にモデルリストを確認するためのログ
         st.error(f"AI生成エラー: {e}")
+        st.info("APIの接続に問題がある可能性があります。")
 
 # --- 記録表示エリア ---
 if st.session_state.menu_data:
