@@ -10,18 +10,15 @@ st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: #050505 !important; border-right: 2px solid #007aff; }
-    
-    /* サイドバー内の文字色とカード */
     [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label { color: #ffffff !important; }
     .fairy-card { background: linear-gradient(180deg, rgba(0,122,255,0.1) 0%, rgba(0,0,0,0) 100%); border-radius: 20px; padding: 25px 15px; text-align: center; border: 1px solid rgba(0,122,255,0.3); }
     .system-log { background: #111; padding: 10px; border-radius: 8px; border-left: 3px solid #00ff41; font-family: 'Consolas', monospace; text-align: left; }
     .log-line { color: #00ff41 !important; font-size: 0.8rem !important; margin: 0 !important; }
-    
-    /* 記録カード */
     .record-card { background-color: #ffffff; padding: 20px; border-radius: 12px; border-left: 5px solid #007aff; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    
-    /* フッターの大きな余白 */
     .footer-spacer { margin-top: 100px; margin-bottom: 50px; border-top: 2px solid rgba(0,0,0,0.1); }
+    /* AIステータス用バッジ */
+    .ai-badge { background: #007aff; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: bold; }
+    .backup-badge { background: #ff3b30; color: white; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -44,10 +41,6 @@ CYCLE_CONFIG = {
     6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "限界突破の準備はいいか？"},
 }
 
-def calculate_1rm(w, r):
-    if r <= 0: return 0
-    return round(w * (1 + r / 30), 1) if r > 1 else w
-
 def parse_menu(text):
     items = re.findall(r'『(.*?)』.*?【(.*?)】.*?\((.*?)\)\s*(\d+回)?.*?\[(.*?)\]', text)
     menu_list = []
@@ -64,7 +57,7 @@ def parse_menu(text):
 if "GOOGLE_API_KEY" in st.secrets: genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 for key, val in {
     "total_points": 2500, "calendar_events": [], "menu_data": [], 
-    "last_menu_text": "", "fav_menu": "", 
+    "last_menu_text": "", "fav_menu": "", "ai_active": False,
     "bp_max": 103.5, "sq_max": 168.8, "dl_max": 150.0, 
     "routine_count": 0, "file_content_cache": "2月実績：BP 103.5 / SQ 168.8 / Chining 112.5"
 }.items():
@@ -76,14 +69,13 @@ r_info = CYCLE_CONFIG[current_cycle_step]
 # --- 3. UI表示 ---
 with st.sidebar:
     st.markdown(f'## 🛠️ UNIT STATUS')
-    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> CYCLE: {current_cycle_step}/6</p><p class="log-line">> MSG: {r_info["msg"]}</p></div></div>''', unsafe_allow_html=True)
+    # ステータス表示の動的切り替え
+    engine_status = "ONLINE" if st.session_state.ai_active else "IDLE"
+    st.markdown(f'''<div class="fairy-card"><span style="font-size:80px;">🔱</span><div class="system-log"><p class="log-line">> ID: GOD-MODE</p><p class="log-line">> CYCLE: {current_cycle_step}/6</p><p class="log-line">> CORE: {engine_status}</p></div></div>''', unsafe_allow_html=True)
     st.progress(current_cycle_step / 6)
-    st.write(f"SQ MAX: {st.session_state.sq_max}kg")
-    st.write(f"BP MAX: {st.session_state.bp_max}kg")
 
 st.title("💪 GEMINI MUSCLE MATE")
 
-# メニュー生成部
 mode = st.radio("フォーカス種目", ["ベンチプレス", "スクワット", "デッドリフト", "その他"], horizontal=True)
 parts = st.multiselect("対象部位", list(POPULAR_DICT.keys()), default=["胸"] if mode=="ベンチプレス" else ["足"])
 
@@ -95,13 +87,20 @@ if st.button("AIメニュー生成 (INITIATE)", type="primary"):
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         st.session_state.last_menu_text = response.text
+        st.session_state.ai_active = True # AI成功
     except:
         st.session_state.last_menu_text = f"『{mode}』 【{target_w}kg】 ({r_info['sets']}セット) {r_info['reps']}回 [3分]"
+        st.session_state.ai_active = False # バックアップ動作
     st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
 
-# トレーニング実行部
+# 4. 生成メニュー表示
 if st.session_state.menu_data:
-    # 種目追加タブ
+    # --- ステータスバッジの表示 ---
+    if st.session_state.ai_active:
+        st.markdown('✨ <span class="ai-badge">AI GENERATED</span> 2月の実績から最適な強度を算出しました', unsafe_allow_html=True)
+    else:
+        st.markdown('⚠️ <span class="backup-badge">BACKUP MODE</span> ネットワーク制限のため定型メニューを適用中', unsafe_allow_html=True)
+
     with st.expander("➕ 部位から種目を選んで追加"):
         tabs = st.tabs(list(POPULAR_DICT.keys()))
         for i, (part_name, exercises) in enumerate(POPULAR_DICT.items()):
@@ -128,29 +127,24 @@ if st.session_state.menu_data:
     if st.button("ミッション完了！ (FINISH)", type="primary"):
         st.session_state.routine_count += 1
         st.session_state.calendar_events.append(f"{datetime.now().strftime('%m/%d')} : {mode} Step{current_cycle_step}")
+        st.session_state.ai_active = False # リセット
         st.balloons(); st.session_state.menu_data = []; st.rerun()
 
-# --- 4. メンテナンスエリア（ここが重要：優先順位に基づき独立化） ---
+# --- 5. メンテナンスエリア（優先順位厳守） ---
 st.markdown('<div class="footer-spacer"></div>', unsafe_allow_html=True)
 st.markdown("### ⚙️ SETTINGS & ARCHIVE")
 
-# 優先順位1：履歴
 with st.expander("📅 トレーニング履歴"):
-    if not st.session_state.calendar_events:
-        st.write("まだ記録がありません。")
-    for ev in reversed(st.session_state.calendar_events):
-        st.write(f"✅ {ev}")
+    if not st.session_state.calendar_events: st.write("No records yet.")
+    for ev in reversed(st.session_state.calendar_events): st.write(f"✅ {ev}")
 
-# 優先順位2：1RM設定
 with st.expander("👤 1RM / プログラム手動調整"):
     c1, c2, c3 = st.columns(3)
-    st.session_state.bp_max = c1.number_input("Bench Press MAX (kg)", value=st.session_state.bp_max)
-    st.session_state.sq_max = c2.number_input("Squat MAX (kg)", value=st.session_state.sq_max)
-    st.session_state.dl_max = c3.number_input("Deadlift MAX (kg)", value=st.session_state.dl_max)
-    st.session_state.routine_count = st.number_input("累計カウント(調整用)", value=st.session_state.routine_count)
+    st.session_state.bp_max = c1.number_input("BP MAX", value=st.session_state.bp_max)
+    st.session_state.sq_max = c2.number_input("SQ MAX", value=st.session_state.sq_max)
+    st.session_state.dl_max = c3.number_input("DL MAX", value=st.session_state.dl_max)
+    st.session_state.routine_count = st.number_input("サイクル調整", value=st.session_state.routine_count)
 
-# 優先順位3：AI学習
 with st.expander("🧠 AI学習・こだわり設定"):
-    st.write("AIが現在参照している実績データ:")
     st.code(st.session_state.file_content_cache)
-    st.session_state.fav_menu = st.text_area("こだわり条件", value=st.session_state.fav_menu, placeholder="例：脚の日は必ず最後に腹筋を入れたい")
+    st.session_state.fav_menu = st.text_area("こだわり", value=st.session_state.fav_menu)
