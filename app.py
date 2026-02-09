@@ -52,7 +52,7 @@ CYCLE_CONFIG = {
     6: {"pct": 0.85, "reps": 3, "sets": 4, "msg": "限界突破！"},
 }
 
-# --- 4. セッション初期化 (ここで全ての変数を準備) ---
+# --- 4. セッション初期化 ---
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
@@ -92,36 +92,28 @@ st.title("💪 GEMINI MUSCLE MATE")
 mode = st.radio("フォーカス", ["ベンチプレス", "スクワット", "デッドリフト", "その他"], horizontal=True)
 parts = st.multiselect("対象部位", list(POPULAR_DICT.keys()), default=["胸"] if mode=="ベンチプレス" else ["足"])
 
-# --- AI生成ボタン (ここに全ての参照命令を統合) ---
+# --- AI生成ボタン ---
 if st.button("AIメニュー生成 (FULL SCAN MODE)", type="primary"):
     target_max = st.session_state.bp_max if mode=="ベンチプレス" else st.session_state.sq_max if mode=="スクワット" else st.session_state.dl_max
     target_w = round(target_max * r_info["pct"], 1)
     
     prompt = f"""
-    あなたはユーザーの全トレーニング史とGoogle Drive内の知識ベースを統合する、専属のストレングス・アナリストです。
-    
+    あなたはプロのストレングス・アナリストです。
     【最優先命令】
     1. 過去の全指示（特にベンチプレス等の強度設定に関する過去のユーザーの意図）を遵守せよ。
     2. Google Drive内の「筋トレ」「ワークアウト」「論文」「実績」というキーワードを含む全ファイルの内容を参照し、理論的根拠に基づいたメニューを作成せよ。
     
-    【ナレッジ/制約】
     ナレッジベース: {st.session_state.knowledge_base}
     ユーザー制約: {st.session_state.custom_constraints}
-    
-    【本日の設定】
     メイン:『{mode}』{target_w}kg ({r_info['sets']}set x {r_info['reps']}rep)
     部位: {parts}
     
     形式：『種目名』 【重量kg】 (セット数) 回数 [休憩]
     """
-   try:
-        # モデル名の指定を修正（models/ を抜いた名前にし、最新版を指定）
-        model = genai.GenerativeModel("gemini-1.5-flash") 
+    try:
+        # モデル名を最新の安定版に指定
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-        
-        # もし上記でもダメな場合は、こちらを試してください：
-        # model = genai.GenerativeModel("gemini-1.5-flash-latest")
-        
         st.session_state.last_menu_text = response.text
         st.session_state.ai_active = True
         st.session_state.menu_data = parse_menu(st.session_state.last_menu_text)
@@ -172,4 +164,3 @@ with st.expander("📅 履歴 / 👤 1RM"):
 with st.expander("🧪 知識ベース（AIがDrive全域をスキャンします）"):
     st.session_state.knowledge_base = st.text_area("理論・論文・実績", value=st.session_state.knowledge_base, height=150)
     st.session_state.custom_constraints = st.text_area("こだわり・制約", value=st.session_state.custom_constraints, height=100)
-
