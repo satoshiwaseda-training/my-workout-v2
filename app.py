@@ -4,18 +4,18 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pandas as pd
+import re
 
-# --- 1. 聖典の同期（Google Sheets） ---
+# --- 1. 聖典の同期 ---
 def connect_to_sheet():
     try:
         s_acc = st.secrets["gcp_service_account"]
         creds = Credentials.from_service_account_info(s_acc, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         return gspread.authorize(creds).open_by_key(st.secrets["spreadsheet_id"]).sheet1
     except Exception as e:
-        st.sidebar.error(f"🔱 シート接続エラー：{e}")
         return None
 
-# --- 2. 有料枠 AIエンジン ---
+# --- 2. 有料枠 AIエンジン（種目抽出用プロンプト） ---
 def call_god_mode_ai(prompt, context_data=""):
     api_key = st.secrets["GOOGLE_API_KEY"].strip().replace('"', '')
     url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -25,70 +25,75 @@ def call_god_mode_ai(prompt, context_data=""):
         "【絶対ルール】\n"
         "1. ベンチプレス1RM 103.5kg基準。過去データに基づき詳細なメニューを出せ。\n"
         "2. 脚の日は最後に腹筋を追加せよ。\n"
-        "3. 🔱分析根拠を述べ、メニューはテーブル形式で提示せよ。\n"
-        f"【参照データ】\n{context_data}"
+        "3. 🔱分析根拠を述べ、メニューは必ず箇条書きかテーブル形式で提示せよ。"
     )
     payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\n指令：{prompt}"}]}]}
     try:
         res = requests.post(url, json=payload, timeout=30)
         return res.json()['candidates'][0]['content']['parts'][0]['text']
     except:
-        return "🔱接続エラー。再起動せよ。"
+        return "🔱接続エラー。"
 
 # --- 3. UI 構築 ---
 st.set_page_config(page_title="GOD-MODE ANALYST", page_icon="🔱", layout="wide")
-st.title("🔱 GOD-MODE: TOTAL LOGGING SYSTEM")
+st.title("🔱 GOD-MODE: ADVANCED LOGGING")
 
-# サイドバー：過去データ参照
-with st.sidebar:
-    st.header("🔱 ARCHIVE")
-    uploaded_file = st.file_uploader("過去履歴ファイル", type=['csv', 'txt'])
-    context_data = uploaded_file.read().decode("utf-8") if uploaded_file else ""
-    st.info("PROTOCOL: PAID TIER / 1RM: 103.5kg")
+# セッション状態の初期化
+if 'menu_items' not in st.session_state:
+    st.session_state['menu_items'] = ["ベンチプレス", "スクワット", "デッドリフト"]
 
-# メインUI：メニュー生成
+# プログラム選択
 col_a, col_b = st.columns(2)
 with col_a:
     program = st.selectbox("プログラム", ["ベンチプレス強化", "スクワット強化", "デッドリフト強化", "筋肥大", "筋力増強"])
 with col_b:
     targets = st.multiselect("対象部位", ["胸", "背中", "脚", "肩", "腕", "腹筋"], default=["胸"])
 
-intensity = st.slider("強度 (%)", 50, 100, 85)
-memo = st.text_input("特記事項", "103.5kg基準を遵守せよ。")
-
 if st.button("🔱 メニューを算出"):
     with st.spinner("分析中..."):
-        response = call_god_mode_ai(f"{program}, 部位:{targets}, 強度:{intensity}%, {memo}", context_data)
+        response = call_god_mode_ai(f"{program}, 部位:{targets}, 103.5kg基準")
         st.session_state['last_response'] = response
+        # 回答から種目名っぽいものを抽出してリスト化
+        extracted = re.findall(r"[*・]\s*([^\s(（]+)", response)
+        if extracted:
+            st.session_state['menu_items'] = list(dict.fromkeys(extracted)) # 重複削除
         st.markdown("---")
         st.markdown(response)
 
-# --- 4. 【重要】実績記録セクション（ここを復元しました） ---
+# --- 4. 【本命】動的・複数種目記録セクション ---
 st.markdown("---")
 st.subheader("🔱 本日の調練実績を記録せよ")
-with st.form("log_form"):
-    col_i, col_w, col_r, col_s = st.columns([3, 1, 1, 1])
-    with col_i:
-        ex_name = st.text_input("種目名", placeholder="例：ベンチプレス")
-    with col_w:
-        ex_weight = st.text_input("重量(kg)", placeholder="100")
-    with col_r:
-        ex_reps = st.text_input("回数", placeholder="5")
-    with col_s:
-        ex_sets = st.text_input("セット数", placeholder="3")
-    
-    submit_log = st.form_submit_button("🔱 聖典（スプレッドシート）に実績を刻む")
 
-    if submit_log:
+# 最大5種目まで一度に入力できる欄を作成
+log_data_list = []
+for i in range(5):
+    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+    with c1:
+        # AIが提案した種目、または手入力をプルダウンで
+        ex_name = st.selectbox(f"種目 {i+1}", ["(未選択)"] + st.session_state['menu_items'], key=f"ex_{i}")
+    with c2:
+        ex_weight = st.text_input("重量", key=f"w_{i}", placeholder="kg")
+    with c3:
+        ex_reps = st.selectbox("回数", [str(n) for n in range(1, 31)] + ["MAX"], key=f"r_{i}")
+    with c4:
+        ex_sets = st.selectbox("セット", [str(n) for n in range(1, 11)], key=f"s_{i}")
+    
+    if ex_name != "(未選択)" and ex_weight:
+        log_data_list.append(f"{ex_name}: {ex_weight}kg x {ex_reps}reps x {ex_sets}sets")
+
+if st.button("🔱 聖典（全実績一括）に刻印"):
+    if log_data_list:
         sheet = connect_to_sheet()
         if sheet:
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
-            # 実績データを1行にまとめて記録
-            log_entry = f"{ex_name}: {ex_weight}kg x {ex_reps}reps x {ex_sets}sets"
-            sheet.append_row([now, program, f"{intensity}%", ", ".join(targets), log_entry])
-            st.success(f"🔱 記録完了：{log_entry}")
+            full_log = " / ".join(log_data_list)
+            sheet.append_row([now, program, ", ".join(targets), full_log])
+            st.success(f"🔱 記録完了：{full_log}")
+    else:
+        st.warning("種目と重量を入力せよ。")
 
 # --- 5. 履歴表示 & RPM ---
+st.markdown("---")
 tab1, tab2 = st.tabs(["🔱 履歴", "🔱 RPM計算機"])
 with tab1:
     sheet = connect_to_sheet()
@@ -96,9 +101,7 @@ with tab1:
         data = sheet.get_all_values()
         if len(data) > 1:
             st.dataframe(pd.DataFrame(data[1:], columns=data[0]).tail(10), use_container_width=True)
-
 with tab2:
     w = st.number_input("重量", value=100.0)
     r = st.number_input("回数", value=1)
-    rpm = w * (1 + r/30)
-    st.metric("推定1RM", f"{rpm:.2f} kg")
+    st.metric("推定1RM", f"{(w * (1 + r/30)):.2f} kg")
