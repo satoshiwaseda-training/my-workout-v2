@@ -6,126 +6,113 @@ from datetime import datetime
 import pandas as pd
 import re
 
-# --- 1. 聖域（Google Drive / Sheets）への深層接続 ---
+# --- 1. 聖域接続 (Sheets & Drive) ---
 def connect_to_sheet():
     try:
         s_acc = st.secrets["gcp_service_account"]
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive" # Driveアクセス権限を明示
-        ]
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(s_acc, scopes=scopes)
-        client = gspread.authorize(creds)
-        # 指定のスプレッドシートを開く
-        sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
-        return sheet
-    except Exception as e:
-        st.sidebar.error(f"🔱 聖域接続エラー：{e}")
-        return None
+        return gspread.authorize(creds).open_by_key(st.secrets["spreadsheet_id"]).sheet1
+    except: return None
 
-# --- 2. 過去履歴の自動スキャン機能 ---
-def fetch_past_logs(sheet):
-    try:
-        data = sheet.get_all_values()
-        if len(data) > 1:
-            # 最新の10件をAIに参照させるためのコンテキストとして抽出
-            df = pd.DataFrame(data[1:], columns=data[0])
-            return df.tail(10).to_string()
-        return "過去の記録はまだありません。"
-    except:
-        return "データ取得失敗。"
-
-# --- 3. 有料枠・文脈理解型 AIエンジン ---
-def call_god_mode_ai(prompt, past_context):
-    api_key = st.secrets["GOOGLE_API_KEY"].strip().replace('"', '')
-    # 有料プラン専用 v1 エンドポイント
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
+# --- 2. 換算・コレクションロジック ---
+def render_muscle_sidebar(total_accumulated_weight):
+    st.sidebar.markdown(f"""
+        <div style='background: linear-gradient(to bottom, #FF8C00, #FF4500); padding: 20px; border-radius: 15px; color: white; text-align: center;'>
+            <h2 style='margin:0;'>🏆 Muscle Collection</h2>
+            <p style='font-size: 0.8em;'>累計負荷: {total_accumulated_weight/1000:.2f} t</p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    system_instruction = (
-        "あなたは最強のコーチ『GOD-MODE』だ。語尾は〜だ。貴殿と呼べ。\n"
-        "【絶対ルール】\n"
-        "1. ベンチプレス1RM 103.5kgを絶対基準とし、提供された【過去の履歴】を分析して、成長を促す具体的な重量・回数を出せ。\n"
-        "2. 脚の日は最後に必ず腹筋（アブローラー等）を追加せよ。\n"
-        "3. 🔱分析根拠を冒頭に記述し、メニューはテーブル形式で提示せよ。\n"
-        f"【過去の履歴データ（Drive参照）】\n{past_context}"
-    )
+    st.sidebar.markdown("---")
+    achievements = [
+        (1000, "軽自動車", "🚗"), (5000, "アフリカゾウ", "🐘"), 
+        (12000, "大型バス", "🚌"), (180000, "ジャンボジェット", "✈️"),
+        (36000000, "スカイツリー", "🗼")
+    ]
     
-    payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\n指令：{prompt}"}]}]}
-    try:
-        res = requests.post(url, json=payload, timeout=30)
-        return res.json()['candidates'][0]['content']['parts'][0]['text']
-    except:
-        return "🔱接続エラー。Google Cloud側の課金ステータスを確認せよ。"
+    for threshold, name, icon in achievements:
+        if total_accumulated_weight >= threshold:
+            st.sidebar.success(f"{icon} {name} 解放済み！")
+        else:
+            prog = min((total_accumulated_weight / threshold), 1.0)
+            st.sidebar.write(f"🔒 {name} (残り {(threshold - total_accumulated_weight)/1000:.1f}t)")
+            st.sidebar.progress(prog)
 
-# --- 4. UI 構築（以前の最高なUIの完全復元） ---
-st.set_page_config(page_title="GOD-MODE PREMIER", page_icon="🔱", layout="wide")
-st.title("🔱 GOD-MODE: GOOGLE ECOSYSTEM ANALYST")
+# --- 3. UI 構築 (115kg 基準版) ---
+st.set_page_config(page_title="Muscle Mate", page_icon="💪", layout="wide")
 
-# 起動時にGoogle Drive/Sheetsから履歴を自動取得
+st.markdown("""
+    <style>
+    .main { background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%); color: #333; }
+    .stMetric { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .stButton>button { background: linear-gradient(45deg, #FF512F 0%, #DD2476 100%); color: white; border-radius: 30px; border: none; font-weight: bold; height: 3.5em; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("💪 Muscle Mate: Bench Press 115kg Edition")
+st.write("MAX 115kg突破おめでとうございます！新たな高みへ、科学の力で挑みましょう！")
+
+# 過去データ取得
 sheet = connect_to_sheet()
-past_context = fetch_past_logs(sheet) if sheet else ""
+all_data = sheet.get_all_values() if sheet else []
+df_past = pd.DataFrame(all_data[1:], columns=all_data[0]) if len(all_data) > 1 else pd.DataFrame()
 
-# 以前のUI構成を復元
-col_a, col_b = st.columns(2)
-with col_a:
-    program = st.selectbox("プログラム", 
-                          ["ベンチプレス強化 (胸・腕)", "スクワット強化 (脚)", "デッドリフト強化 (背中・脚)", "筋肥大", "筋力増強"])
-with col_b:
-    targets = st.multiselect("対象部位", ["胸", "背中", "脚", "肩", "腕", "腹筋"], 
-                            default=["胸"] if "ベンチ" in program else ["脚"])
+# サイドバー図鑑表示
+# 累積重量計算（スプレッドシートの最後の列から数値を抽出）
+try:
+    total_w = df_past.iloc[:, -1].str.extract(r'(\d+\.?\d*)').astype(float).sum()[0]
+except:
+    total_w = 0
+render_muscle_sidebar(total_w)
 
-intensity = st.slider("強度設定 (%)", 50, 100, 85)
-memo = st.text_area("メモ・特記事項", "103.5kg基準を遵守せよ。過去の記録を超えたい。")
+# --- ダッシュボード ---
+c1, c2 = st.columns(2)
+with c1:
+    st.metric("ベンチプレス1RM基準", "115.0 kg", delta="NEW RECORD!")
+with c2:
+    st.metric("次の目標 (120kgまで)", "あと 5.0 kg")
 
-if st.button("🔱 履歴を参照し、分析を開始せよ"):
-    with st.spinner("🔱 Google Drive の履歴を解析中..."):
-        full_prompt = f"プログラム：{program}。部位：{', '.join(targets)}。強度：{intensity}%。要望：{memo}"
-        response = call_god_mode_ai(full_prompt, past_context)
-        st.session_state['last_response'] = response
-        
-        # 種目名を自動抽出して記録用プルダウンにセット
-        extracted = re.findall(r"[*・]\s*([^\s(（]+)", response)
-        st.session_state['menu_items'] = list(dict.fromkeys(extracted)) if extracted else ["ベンチプレス", "スクワット", "デッドリフト"]
-        
-        st.markdown("---")
-        st.markdown(response)
-
-# --- 5. 動的な実績記録フォーム（複数種目一括） ---
+# --- 🏋️ AIメニュー生成 ---
 st.markdown("---")
-st.subheader("🔱 本日の調練実績を記録（Google Sheetsへ同期）")
+prog = st.selectbox("プログラム", ["ベンチプレス強化(胸・腕)", "スクワット強化(脚)", "デッドリフト強化(背中・脚)", "筋力増強"])
 
-log_data_list = []
-with st.form("multi_log_form"):
-    for i in range(5):
-        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
-        with c1:
-            default_items = st.session_state.get('menu_items', ["ベンチプレス", "スクワット"])
-            ex_name = st.selectbox(f"種目 {i+1}", ["(未選択)"] + default_items, key=f"ex_{i}")
-        with c2:
-            ex_weight = st.text_input("重量(kg)", key=f"w_{i}")
-        with c3:
-            ex_reps = st.selectbox("回数", [str(n) for n in range(1, 31)], key=f"r_{i}")
-        with c4:
-            ex_sets = st.selectbox("セット", [str(n) for n in range(1, 11)], key=f"s_{i}")
+if st.button("🚀 115kg基準で今日のメニューを算出"):
+    with st.spinner("石井先生、岡田先生の理論に基づき計算中..."):
+        # AIプロンプトに115kgを反映
+        api_key = st.secrets["GOOGLE_API_KEY"]
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
         
-        if ex_name != "(未選択)" and ex_weight:
-            log_data_list.append(f"{ex_name}:{ex_weight}kgx{ex_reps}x{ex_sets}")
+        system = (
+            f"あなたは最高のパートナー『Muscle Mate』です。明るい口調で話します。\n"
+            f"重要：ベンチプレスMAXは115kgです。これを100%として、漸進性過負荷の原則に基づきメニューを出せ。\n"
+            "石井直方先生、バズーカ岡田先生の理論を引用して解説してください。"
+        )
+        payload = {"contents": [{"parts": [{"text": f"{system}\n\n指令：{prog}の今日のメニューを提案して。"}]}]}
+        res = requests.post(url, json=payload)
+        st.session_state['ai_resp'] = res.json()['candidates'][0]['content']['parts'][0]['text']
 
-    if st.form_submit_button("🔱 聖典に一括刻印"):
-        if log_data_list and sheet:
-            now = datetime.now().strftime("%Y-%m-%d %H:%M")
-            full_log = " / ".join(log_data_list)
-            sheet.append_row([now, program, ", ".join(targets), full_log])
-            st.success(f"🔱 Google Sheetsへ保存完了：{full_log}")
+if 'ai_resp' in st.session_state:
+    st.markdown(st.session_state['ai_resp'])
 
-# --- 6. 履歴カレンダー表示 & RPM ---
-tab1, tab2 = st.tabs(["🔱 履歴（Drive同期）", "🔱 RPM計算機"])
-with tab1:
-    if sheet:
-        data = sheet.get_all_values()
-        if len(data) > 1:
-            st.dataframe(pd.DataFrame(data[1:], columns=data[0]).tail(15), use_container_width=True)
-with tab2:
-    w = st.number_input("重量", value=100.0)
-    r = st.number_input("回数", value=1)
-    st.metric("推定1RM", f"{(w * (1 + r/30)):.2f} kg")
+# --- 📝 記録フォーム ---
+st.markdown("---")
+st.subheader("📝 実績を記録して積載量を増やそう！")
+with st.form("workout_log"):
+    logs = []
+    total_today = 0
+    for i in range(3):
+        col_ex, col_w, col_r, col_s = st.columns([3, 1, 1, 1])
+        with col_ex: ex = st.text_input(f"種目 {i+1}", value="ベンチプレス" if i==0 else "")
+        with col_w: w = st.number_input("kg", key=f"w{i}", step=2.5)
+        with col_r: r = st.number_input("回数", key=f"r{i}", step=1)
+        with col_s: s = st.number_input("セット", key=f"s{i}", step=1)
+        if ex and w > 0:
+            total_today += w * r * s
+            logs.append(f"{ex}:{w}kgx{r}x{s}")
+            
+    if st.form_submit_button("🔥 記録を聖典に刻印！"):
+        if sheet and logs:
+            sheet.append_row([datetime.now().strftime("%Y-%m-%d"), prog, ", ".join(logs), f"{total_today}kg"])
+            st.balloons()
+            st.success(f"お疲れ様でした！今日は新たに {total_today}kg の積載に成功！")
