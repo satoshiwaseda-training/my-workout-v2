@@ -17,7 +17,7 @@ def connect_to_google():
         return sheet
     except: return None
 
-# --- 2. UI スタイル (モチベ最大化グラデーション) ---
+# --- 2. UI スタイル (明るいグラデーション) ---
 st.set_page_config(page_title="Muscle Mate", page_icon="💪", layout="wide")
 st.markdown("""
     <style>
@@ -27,7 +27,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💪 Muscle Mate: The Absolute Final Sync")
+st.title("💪 Muscle Mate: The Final Precision Sync")
 
 sheet = connect_to_google()
 df_past = pd.DataFrame()
@@ -35,7 +35,7 @@ if sheet:
     data = sheet.get_all_values()
     if len(data) > 1: df_past = pd.DataFrame(data[1:], columns=data[0])
 
-# --- 3. BIG3 RPM (1RM) 管理 ---
+# --- 3. BIG3 1RM基準管理 ---
 st.subheader("🏋️ BIG3 1RM基準（現在の限界）")
 c_bp, c_sq, c_dl = st.columns(3)
 with c_bp: rpm_bp = st.number_input("Bench Press MAX", value=115.0, step=2.5, key="rpm_bp")
@@ -49,7 +49,7 @@ with col_time: t_limit = st.selectbox("トレーニング時間", [60, 90], inde
 with col_prog: prog = st.selectbox("プログラム", ["BIG3強化", "部位特化", "筋力増強", "筋肥大"])
 with col_target: targets = st.multiselect("対象部位", ["胸", "背中", "脚", "肩", "腕"], default=["胸", "腕"])
 
-# --- 5. AIメニュー生成 (Session Stateで鉄壁保持) ---
+# --- 5. AIメニュー生成 (Session Stateで保持) ---
 if st.button("🚀 最新エビデンスに基づきメニューを生成"):
     with st.spinner("世界中の論文データをスキャン中..."):
         api_key = st.secrets["GOOGLE_API_KEY"].strip()
@@ -66,6 +66,7 @@ if st.button("🚀 最新エビデンスに基づきメニューを生成"):
         if res.status_code == 200:
             resp_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             st.session_state['ai_resp'] = resp_text
+            # 種目をパース
             parsed = []
             for line in resp_text.split('\n'):
                 match = re.search(r'[*・]\s*([^:]+):(\d+\.?\d*)kgx(\d+)x(\d+)', line)
@@ -75,7 +76,7 @@ if st.button("🚀 最新エビデンスに基づきメニューを生成"):
 
 # --- 6. 【完全連動】AI提案がある時のみ、セット数分の入力欄を表示 ---
 if 'active_tasks' in st.session_state and st.session_state['active_tasks']:
-    st.info(f"📋 推奨メニュー ({t_limit}分):\n{st.session_state['ai_resp']}")
+    st.info(f"📋 推奨プラン ({t_limit}分):\n{st.session_state['ai_resp']}")
     
     st.markdown("---")
     st.subheader(f"📝 本日の実績記録（セット別入力）")
@@ -87,7 +88,6 @@ if 'active_tasks' in st.session_state and st.session_state['active_tasks']:
         for i, task in enumerate(st.session_state['active_tasks']):
             st.markdown(f"#### 🏋️ {task['name']} (目標: {task['w']}kg)")
             
-            # セット数分、確実に入力欄を表示
             for s_num in range(1, task['s'] + 1):
                 c_label, c_w, c_r = st.columns([1, 2, 2])
                 with c_label: st.write(f"Set {s_num}")
@@ -104,7 +104,7 @@ if 'active_tasks' in st.session_state and st.session_state['active_tasks']:
                 now = datetime.now().strftime("%Y-%m-%d %H:%M")
                 sheet.append_row([now, f"{prog}({t_limit}分)", ", ".join(targets), ", ".join(all_logs), f"Total:{total_vol}kg"])
                 st.balloons()
-                st.success(f"完璧です！総負荷 {total_vol}kg (飛行機 {total_vol/180000:.4f}機分) をDriveへ同期しました！")
+                st.success(f"完了！総負荷 {total_vol}kg をDriveへ同期しました！")
 
 # --- 7. 履歴 ---
 st.markdown("---")
