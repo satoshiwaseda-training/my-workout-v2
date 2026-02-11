@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💪 Muscle Mate: Real-time Analyst")
+st.title("💪 Muscle Mate: The Final Intelligence")
 
 # 接続 & 履歴取得
 sheet = connect_to_google()
@@ -37,7 +37,7 @@ if sheet:
     data = sheet.get_all_values()
     if len(data) > 1: df_past = pd.DataFrame(data[1:], columns=data[0])
 
-# --- 3. BIG3 RPM (1RM) 管理 ---
+# --- 3. BIG3 1RM基準管理 ---
 st.subheader("🏋️ BIG3 1RM基準（現在の限界）")
 c_bp, c_sq, c_dl = st.columns(3)
 with c_bp: rpm_bp = st.number_input("Bench Press MAX", value=115.0, step=2.5, key="rpm_bp")
@@ -51,23 +51,22 @@ with col_time: t_limit = st.selectbox("トレーニング時間", [60, 90], inde
 with col_prog: prog = st.selectbox("プログラム", ["BIG3強化", "部位特化", "筋力増強", "筋肥大"])
 with col_target: targets = st.multiselect("対象部位", ["胸", "背中", "脚", "肩", "腕"], default=["胸", "腕"])
 
-# --- 5. 【修正の核】AIメニュー生成とデータ保持 ---
+# --- 5. 【修正の核心】AIメニュー生成とデータ保持の完全固定 ---
 if st.button("🚀 最新エビデンスに基づきメニューを生成"):
     with st.spinner("世界中の論文データをスキャン中..."):
         api_key = st.secrets["GOOGLE_API_KEY"].strip()
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
         
         system = (
-            f"あなたはMuscle Mate。BP:{rpm_bp}, SQ:{rpm_sq}, DL:{rpm_dl}kgを100%基準。時間{t_limit}分。"
-            f"世界の最新スポーツ科学に基づき、解説抜きで'種目名:重量kgx回数xセット数'の形式のみ出せ。"
-            f"重量は1RMの60-85%で算出。部位:{targets}に特化せよ。"
+            f"あなたは最高のパートナー『Muscle Mate』。BP:{rpm_bp}, SQ:{rpm_sq}, DL:{rpm_dl}kgを100%基準とする。"
+            f"世界の最新スポーツ科学に基づき、{t_limit}分で終わるメニューを出せ。部位:{targets}に特化し、それ以外の種目は絶対に出すな。"
+            f"解説禁止。'種目名:重量kgx回数xセット数'の形式のみ厳守。重量は1RMの60-85%で論理的に算出せよ。"
         )
         payload = {"contents": [{"parts": [{"text": f"{system}\n\n指令：{prog}の今日のメニューを提案。"}]}]}
         res = requests.post(url, json=payload)
         
         if res.status_code == 200:
             resp_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-            # AIの生回答とパース結果をセッションにガッチリ固定
             st.session_state['ai_resp'] = resp_text
             parsed = []
             for line in resp_text.split('\n'):
@@ -75,24 +74,21 @@ if st.button("🚀 最新エビデンスに基づきメニューを生成"):
                 if match:
                     parsed.append({"name": match.group(1), "w": float(match.group(2)), "r": int(match.group(3)), "s": int(match.group(4))})
             st.session_state['active_tasks'] = parsed
-        else:
-            st.error("AIとの通信に失敗しました。APIキーを確認してください。")
 
-# --- 6. 【最重要】AI提案と完全連動したセット別入力欄の表示 ---
+# --- 6. 【最重要】AI提案と完全連動した「セット別」入力欄 ---
 if 'ai_resp' in st.session_state:
     st.info(f"📋 推奨プラン ({t_limit}分):\n{st.session_state['ai_resp']}")
     
     if 'active_tasks' in st.session_state and st.session_state['active_tasks']:
         st.markdown("---")
-        st.subheader("📝 本日の実績記録（セット別入力）")
+        st.subheader("📝 実績記録（セット数分の入力欄を自動生成）")
         
-        # 入力中のリフレッシュによるデータ消失を防ぐ
-        with st.form("ultimate_dynamic_form"):
+        with st.form("ultimate_dynamic_sync_form"):
             all_logs = []
             total_vol = 0
             
             for i, task in enumerate(st.session_state['active_tasks']):
-                st.markdown(f"#### 🏋️ {task['name']} (目標: {task['w']}kg)")
+                st.markdown(f"#### 🏋️ {task['name']} (推奨: {task['w']}kg)")
                 
                 # セット数分、確実に入力欄を表示
                 for s_num in range(1, task['s'] + 1):
@@ -115,5 +111,5 @@ if 'ai_resp' in st.session_state:
 
 # --- 7. 履歴 ---
 st.markdown("---")
-st.subheader("📜 過去の履歴")
+st.subheader("📜 過去の履歴 (Drive)")
 if not df_past.empty: st.dataframe(df_past.tail(15), use_container_width=True)
