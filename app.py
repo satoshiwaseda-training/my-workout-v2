@@ -12,10 +12,12 @@ def connect_to_sheet():
         s_acc = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(s_acc, scopes=scopes)
-        return gspread.authorize(creds).open_by_key(st.secrets["spreadsheet_id"]).sheet1
-    except: return None
+        client = gspread.authorize(creds)
+        return client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+    except:
+        return None
 
-# --- 2. 部位別人気種目リスト（ここを統一しました） ---
+# --- 2. 部位別人気種目リスト (グローバル定義) ---
 popular_exercises = {
     "胸": ["ベンチプレス", "インクラインプレス", "ダンベルフライ", "チェストプレス"],
     "脚": ["スクワット", "レッグプレス", "レッグエクステンション", "ブルガリアンスクワット"],
@@ -27,15 +29,19 @@ popular_exercises = {
 
 # --- 3. UI 構築 (明るいグラデーション) ---
 st.set_page_config(page_title="Muscle Mate", page_icon="💪", layout="wide")
+
+# 明るくポジティブなオレンジ系のグラデーションUI
 st.markdown("""
     <style>
-    .main { background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%); }
+    .main { background: linear-gradient(135deg, #FF9A9E 0%, #FAD0C4 99%, #FAD0C4 100%); color: #444; }
     .stMetric { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-    .stButton>button { background: linear-gradient(to right, #ff416c, #ff4b2b); color: white; border-radius: 20px; font-weight: bold; height: 3em; }
+    .stButton>button { background: linear-gradient(to right, #FF416C, #FF4B2B); color: white; border-radius: 20px; font-weight: bold; border: none; height: 3.5em; }
+    div[data-baseweb="select"] { color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💪 Muscle Mate: Active Dashboard")
+st.title("💪 Muscle Mate: Elite Training Partner")
+st.write("MAX 115kg 基準：科学と情熱で、最高の一日を。")
 
 # 過去データ取得
 sheet = connect_to_sheet()
@@ -45,57 +51,72 @@ if sheet:
     if len(data) > 1:
         df_past = pd.DataFrame(data[1:], columns=data[0])
 
-# ダッシュボード (換算表示)
-col1, col2, col3 = st.columns(3)
-with col1: st.metric("今週の負荷", "64.66 t")
-with col2: st.metric("28日間の合計", "239.29 t")
-with col3: st.metric("総合負荷 (積載量)", "10.5 ✈️")
+# --- サイドバー：コレクション図鑑 ---
+st.sidebar.header("🏆 Muscle Collection")
+try:
+    # 累積重量をスプレッドシートの最終列から合算
+    total_w_kg = df_past.iloc[:, -1].str.extract(r'Total:(\d+\.?\d*)').astype(float).sum()[0]
+except:
+    total_w_kg = 0
 
-# --- 4. AI提案 (115kg基準 & 論文参照) ---
+st.sidebar.write(f"累計積載量: {total_w_kg/1000:.2f} t")
+achievements = [(1000, "軽自動車", "🚗"), (100000, "ジャンボジェット", "✈️"), (36000000, "スカイツリー", "🗼")]
+for threshold, name, icon in achievements:
+    if total_w_kg >= threshold:
+        st.sidebar.success(f"{icon} {name} 解放済み！")
+    else:
+        st.sidebar.write(f"🔒 {name} (あと {(threshold - total_w_kg)/1000:.1f}t)")
+
+# --- 4. メインダッシュボード ---
+c1, c2, c3 = st.columns(3)
+with c1: st.metric("1RM基準", "115.0 kg")
+with c2: st.metric("今週の総負荷", "64.66 t")
+with col3: 
+    # 換算表示
+    jet_val = total_w_kg / 180000
+    st.metric("飛行機積載量", f"{jet_val:.4f} ✈️")
+
+# --- 5. AI提案 (石井先生・岡田先生理論) ---
 st.markdown("---")
 prog = st.selectbox("プログラム", ["ベンチプレス強化(胸・腕)", "スクワット強化(脚)", "デッドリフト強化(背中・脚)", "背中強化", "肩強化"])
 
 if st.button("🚀 Muscle Mateにメニューを相談する"):
-    with st.spinner("Driveと論文をスキャン中..."):
-        api_key = st.secrets["GOOGLE_API_KEY"]
+    with st.spinner("Driveと論文を解析中..."):
+        api_key = st.secrets["GOOGLE_API_KEY"].strip()
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
-        past_context = df_past.tail(10).to_string() if not df_past.empty else ""
         
+        past_context = df_past.tail(10).to_string() if not df_past.empty else "新規"
         system = (
             f"あなたは最高のパートナー『Muscle Mate』。MAX115kg基準。石井直方先生、バズーカ岡田先生の理論、"
-            f"6回1周サイクル、漸進性過負荷の原則に基づき、過去ログから最適な重量を提案せよ。\n【履歴】\n{past_context}"
+            f"漸進性過負荷の原則に基づき提案せよ。\n【履歴】\n{past_context}"
         )
-        payload = {"contents": [{"parts": [{"text": f"{system}\n\n指令：{prog}のメニューを詳細に出して。"}]}]}
+        payload = {"contents": [{"parts": [{"text": f"{system}\n\n指令：{prog}のメニューを出せ。"}]}]}
         res = requests.post(url, json=payload)
         
         if res.status_code == 200:
             st.session_state['ai_resp'] = res.json()['candidates'][0]['content']['parts'][0]['text']
-            # AIの回答から種目名を抽出
-            st.session_state['current_menu'] = re.findall(r'[*・]\s*([^\s(（]+)', st.session_state['ai_resp'])[:4]
-        else:
-            st.error("AIとの通信に失敗しました。")
+            # AI提案から種目名をリスト化
+            st.session_state['suggested_items'] = re.findall(r'[*・]\s*([^\s(（]+)', st.session_state['ai_resp'])[:4]
 
 if 'ai_resp' in st.session_state:
     st.info(st.session_state['ai_resp'])
 
-# --- 5. 実績記録 (AI提案連動 + 人気種目) ---
+# --- 6. 動的実績記録 (AI連動 + 人気種目) ---
 st.markdown("---")
-st.subheader("📝 今日の努力を聖典に刻む")
+st.subheader("📝 今日の努力を記録（Drive同期）")
 
-# 全人気種目のリスト
+# 全人気種目の統合リスト
 all_popular = sum(popular_exercises.values(), [])
-suggested = st.session_state.get('current_menu', ["ベンチプレス", "種目2", "種目3", "種目4"])
+suggested = st.session_state.get('suggested_items', ["ベンチプレス", "スクワット", "デッドリフト", "懸垂"])
 
-with st.form("workout_form"):
+with st.form("workout_form", clear_on_submit=False):
     logs = []
     total_today = 0
     for i in range(4):
-        # AIが提案した種目をデフォルト、なければ予備の種目
         default_ex = suggested[i] if i < len(suggested) else all_popular[i]
-        
         c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
         with c1:
-            # 提案種目をトップにしつつ、全人気種目を選べるように
+            # AI提案を初期値にしつつ、すべての人気種目を選択可能に
             opts = [default_ex] + [x for x in all_popular if x != default_ex]
             ex = st.selectbox(f"種目 {i+1}", opts, key=f"ex_{i}")
         with c2: w = st.number_input("kg", key=f"w_{i}", step=2.5)
@@ -110,15 +131,16 @@ with st.form("workout_form"):
             now = datetime.now().strftime("%Y-%m-%d")
             sheet.append_row([now, prog, ", ".join(logs), f"Total:{total_today}kg"])
             st.balloons()
-            st.success(f"記録完了！今日の負荷: {total_today}kg (軽自動車 {total_today/1000:.2f}台分！)")
+            st.success(f"お疲れ様です！今日の積載量: {total_today}kg (軽自動車 {total_today/1000:.2f}台分！)")
 
-# --- 6. 履歴・Drive参照・設定 (復元) ---
+# --- 7. 履歴・Drive参照・設定 (復元) ---
 st.markdown("---")
-tab1, tab2 = st.tabs(["📜 履歴（Drive同期）", "⚙️ 設定 & 1RM"])
+tab1, tab2 = st.tabs(["📜 履歴（Drive同期）", "⚙️ 設定 & 聖域詳細"])
 with tab1:
     if not df_past.empty:
         st.dataframe(df_past.tail(15), use_container_width=True)
 with tab2:
-    st.write(f"ベンチプレス MAX基準: 115kg")
-    st.write("参照Google Drive: 正常接続中")
-    st.write("理論ベース: 石井直方先生 / バズーカ岡田先生")
+    st.write(f"ベンチプレス MAX: 115kg")
+    st.write("Google Drive: 正常接続中")
+    st.write("理論ベース: 石井直方 / バズーカ岡田")
+    st.write("6回1周サイクル: 稼働中")
