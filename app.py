@@ -17,13 +17,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💪 Muscle Mate: The Final Precision")
+st.title("💪 Muscle Mate: The Final Stability")
 
-# --- 2. セッション変数の初期化 (これが重要：アプリの冒頭で箱を作る) ---
+# --- 2. セッション変数の初期化 (これが命です) ---
 if 'active_tasks' not in st.session_state:
-    st.session_state['active_tasks'] = None
+    st.session_state.active_tasks = None
 if 'ai_resp_text' not in st.session_state:
-    st.session_state['ai_resp_text'] = ""
+    st.session_state.ai_resp_text = ""
 
 # --- 3. Google Sheets 接続 ---
 def connect_to_google():
@@ -35,71 +35,83 @@ def connect_to_google():
 
 sheet = connect_to_google()
 
-# --- 4. 1RM基準値 ---
+# --- 4. BIG3 1RM基準値 ---
 c1, c2, c3 = st.columns(3)
-with c1: rpm_bp = st.number_input("BP MAX", value=115.0, key="rpm_bp")
+with c1: rpm_bp = st.number_input("BP MAX (115kg基準)", value=115.0, key="rpm_bp")
 with c2: rpm_sq = st.number_input("SQ MAX", value=140.0, key="rpm_sq")
 with c3: rpm_dl = st.number_input("DL MAX", value=160.0, key="rpm_dl")
 
 # --- 5. 実行設定 ---
 st.markdown("---")
 c_time, c_target = st.columns([1, 2])
-with c_time: t_limit = st.selectbox("時間", [60, 90], index=0, format_func=lambda x: f"{x}分")
-with c_target: targets = st.multiselect("対象部位", ["胸 (BP)", "脚 (SQ)", "背中 (DL)", "肩", "腕"], default=["胸 (BP)"])
+with c_time: t_limit = st.selectbox("トレーニング時間", [60, 90], index=0, format_func=lambda x: f"{x}分")
+with c_target: targets = st.multiselect("本日の鍛錬部位", ["胸 (BP)", "脚 (SQ)", "背中 (DL)", "肩", "腕"], default=["胸 (BP)"])
 
-# --- 6. メニュー生成 (1クリックで確実に箱へ保存) ---
-if st.button("🚀 最新エビデンスに基づきメニューを生成"):
-    with st.spinner("AIが現実的な強度を算出中..."):
+# --- 6. メニュー生成 (1クリックで確実にStateを更新) ---
+if st.button("🚀 プログラム設計図からメニューを展開"):
+    with st.spinner("AIが現実的な強度(RPE8)を算出中..."):
         api_key = st.secrets["GOOGLE_API_KEY"].strip()
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
         
         system = (
-            f"あなたはMuscle Mate。BP:{rpm_bp}kg基準。時間{t_limit}分。休憩(180秒/90秒)を計算に含め、種目数を3種目に厳選。"
-            f"重量は一般的で安全なRPE8を基準。1RMの60-75%程度で算出。"
-            f"出力形式：'種目名:重量kgx回数xセット数[休憩:秒]'"
+            f"あなたは最高のパートナー『Muscle Mate』。サトシさんのBP:{rpm_bp}kgを100%とする。"
+            f"制限時間{t_limit}分。休憩(180秒/90秒)を厳密に含め、種目を3つに厳選せよ。"
+            f"【重要】重量はRPE8（あと2回できる余裕）を基準。1RMの60-75%程度で算出。"
+            f"出力形式は必ず以下を守れ： '種目名:重量kgx回数xセット数[休憩:秒]'"
         )
         payload = {"contents": [{"parts": [{"text": f"{system}\n\n指令：本日の設計図を出せ。"}]}]}
         res = requests.post(url, json=payload)
         
         if res.status_code == 200:
             resp_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-            st.session_state['ai_resp_text'] = resp_text
+            st.session_state.ai_resp_text = resp_text
             
             parsed = []
-            for line in resp_text.split('\n'):
-                match = re.search(r'[*・]?\s*([^:]+):(\d+\.?\d*)kgx(\d+)x(\d+)\[休憩:(\d+)\]', line)
+            # 改良版正規表現：より柔軟にパース
+            lines = resp_text.split('\n')
+            for line in lines:
+                match = re.search(r'([^:]+):(\d+\.?\d*)kgx(\d+)x(\d+)(?:\[休憩:(\d+)\])?', line)
                 if match:
-                    parsed.append({"name": match.group(1), "w": float(match.group(2)), "r": int(match.group(3)), "s": int(match.group(4)), "rest": int(match.group(5))})
+                    parsed.append({
+                        "name": match.group(1).strip("*・ "),
+                        "w": float(match.group(2)),
+                        "r": int(match.group(3)),
+                        "s": int(match.group(4)),
+                        "rest": int(match.group(5)) if match.group(5) else 90
+                    })
             
-            # 記憶の箱に保存して、画面を更新
-            st.session_state['active_tasks'] = parsed
-            st.rerun()
+            if parsed:
+                st.session_state.active_tasks = parsed
+                st.rerun() # ここで画面を強制リロードして描画を確定させる
+            else:
+                st.error("AIの回答を正しく読み取れませんでした。もう一度お試しください。")
 
-# --- 7. 【死守UI】記録欄の表示 (箱にデータがある限り、絶対に出す) ---
-if st.session_state['active_tasks']:
-    st.info(f"📋 推奨プラン:\n{st.session_state['ai_resp_text']}")
+# --- 7. 【絶対死守UI】記録欄の表示 ---
+# セッションにデータがある限り、何があっても表示し続ける
+if st.session_state.active_tasks:
+    st.info(f"📋 今日のミッション:\n{st.session_state.ai_resp_text}")
     
-    with st.form("ultimate_record_form"):
+    with st.form("absolute_sync_form"):
         all_logs = []
         total_vol = 0
-        for i, task in enumerate(st.session_state['active_tasks']):
+        for i, task in enumerate(st.session_state.active_tasks):
             st.markdown(f'<div class="workout-card">### 🏋️ {task["name"]} (休憩: {task["rest"]}s)</div>', unsafe_allow_html=True)
             for s_num in range(1, task['s'] + 1):
                 col_label, col_w, col_r = st.columns([1, 2, 2])
                 with col_label: st.write(f"Set {s_num}")
-                # keyに一意性を持たせることで、Streamlitが値を正しく管理
-                w = st.number_input(f"重量(kg)", value=task['w'], key=f"inp_w_{i}_{s_num}", step=0.5)
-                r = st.number_input(f"回数", value=task['r'], key=f"inp_r_{i}_{s_num}", step=1)
+                w = st.number_input(f"重量(kg)", value=task['w'], key=f"w_{i}_{s_num}", step=0.5)
+                r = st.number_input(f"回数", value=task['r'], key=f"r_{i}_{s_num}", step=1)
                 
                 if w > 0:
                     total_vol += w * r
                     all_logs.append(f"{task['name']}(S{s_num}):{w}kgx{r}")
             st.markdown("---")
 
-        if st.form_submit_button("🔥 実績をGoogle Driveへ保存"):
+        if st.form_submit_button("🔥 実績をGoogle Driveへ刻む"):
             if sheet and all_logs:
                 now = datetime.now().strftime("%Y-%m-%d %H:%M")
                 sheet.append_row([now, f"{t_limit}min session", ", ".join(targets), ", ".join(all_logs), f"Vol:{total_vol}kg"])
                 st.balloons()
                 st.success(f"完璧ですサトシさん！総負荷 {total_vol}kg を保存しました！")
-                st.session_state['active_tasks'] = None # 保存後にリセット
+                st.session_state.active_tasks = None # 保存後にクリア
+                st.rerun()
